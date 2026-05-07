@@ -9,6 +9,10 @@ package com.vex.core;
  * @param dimension expected vector dimension
  * @param metric distance function
  * @param randomSeed seed for the level-assignment PRNG
+ * @param useHeuristicNeighborSelection if true (default), use Algorithm 4 (diversity heuristic). If
+ *     false, use the simple top-M variant from the paper. The heuristic produces a more navigable
+ *     graph on clustered data; the simple variant can give higher recall on uniform random data at
+ *     the cost of less navigability.
  */
 public record HnswConfig(
     int M,
@@ -16,7 +20,8 @@ public record HnswConfig(
     int efSearch,
     int dimension,
     DistanceMetric metric,
-    long randomSeed) {
+    long randomSeed,
+    boolean useHeuristicNeighborSelection) {
 
   public HnswConfig {
     if (M < 2) {
@@ -35,6 +40,17 @@ public record HnswConfig(
     if (metric == null) {
       throw new IllegalArgumentException("metric is required");
     }
+  }
+
+  /** Backwards-compatible constructor. Defaults to the heuristic neighbor selection. */
+  public HnswConfig(
+      int M,
+      int efConstruction,
+      int efSearch,
+      int dimension,
+      DistanceMetric metric,
+      long randomSeed) {
+    this(M, efConstruction, efSearch, dimension, metric, randomSeed, true);
   }
 
   /** Returns reasonable defaults: M=16, efConstruction=200, efSearch=50, seed=42. */

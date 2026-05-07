@@ -44,19 +44,29 @@ public final class RecallSweep {
     System.out.printf("brute-force computed %d top-%d sets in %d ms%n", Q, K, bfMs);
 
     System.out.println();
-    System.out.println("== float-precision HNSW ==");
-    runSweep("float", data, queries, truth, false);
+    System.out.println("== float-precision HNSW (heuristic neighbor selection) ==");
+    runSweep("float-h", data, queries, truth, false, true);
 
     System.out.println();
-    System.out.println("== scalar-quantized round-trip HNSW ==");
-    runSweep("quant", data, queries, truth, true);
+    System.out.println("== float-precision HNSW (simple top-M neighbor selection) ==");
+    runSweep("float-s", data, queries, truth, false, false);
+
+    System.out.println();
+    System.out.println("== scalar-quantized round-trip HNSW (heuristic) ==");
+    runSweep("quant-h", data, queries, truth, true, true);
   }
 
   private static void runSweep(
-      String label, float[][] data, float[][] queries, List<Set<Long>> truth, boolean quantize) {
+      String label,
+      float[][] data,
+      float[][] queries,
+      List<Set<Long>> truth,
+      boolean quantize,
+      boolean useHeuristic) {
     ScalarQuantizer quantizer = quantize ? ScalarQuantizer.train(data) : null;
 
-    HnswConfig cfg = new HnswConfig(16, 200, 50, DIM, new L2Distance(), SEED);
+    HnswConfig cfg =
+        new HnswConfig(16, 200, 50, DIM, new L2Distance(), SEED, useHeuristic);
     HnswIndex idx = new HnswIndex(cfg);
 
     long buildStart = System.nanoTime();

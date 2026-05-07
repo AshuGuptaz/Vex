@@ -408,6 +408,9 @@ public final class HnswIndex implements AutoCloseable {
       int layer,
       boolean extendCandidates,
       boolean keepPrunedConnections) {
+    if (!config.useHeuristicNeighborSelection()) {
+      return selectNeighborsSimple(candidates, M);
+    }
     PriorityQueue<Candidate> w = new PriorityQueue<>(Comparator.comparingDouble(c -> c.distance));
     Set<Integer> seen = new HashSet<>();
     for (Candidate c : candidates) {
@@ -455,6 +458,22 @@ public final class HnswIndex implements AutoCloseable {
       }
     }
     return result;
+  }
+
+  /** Algorithm 3 from the paper: take the M nearest from the candidate set. */
+  private List<Integer> selectNeighborsSimple(Collection<Candidate> candidates, int M) {
+    PriorityQueue<Candidate> w = new PriorityQueue<>(Comparator.comparingDouble(c -> c.distance));
+    Set<Integer> seen = new HashSet<>();
+    for (Candidate c : candidates) {
+      if (seen.add(c.index)) {
+        w.add(c);
+      }
+    }
+    List<Integer> out = new ArrayList<>(M);
+    while (!w.isEmpty() && out.size() < M) {
+      out.add(w.poll().index);
+    }
+    return out;
   }
 
   private int randomLevel() {
