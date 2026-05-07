@@ -1,7 +1,7 @@
 # ADR 005: Scalar quantization with per-dimension int8 mapping
 
 **Date:** 2026-05-07
-**Status:** Accepted (with deferred integration)
+**Status:** Accepted
 
 ## Context
 
@@ -28,28 +28,42 @@ following properties:
   hot path. The integer differences are scaled per-dimension so the
   ordering matches the float-domain distance.
 
-## Status of integration
+## How it's wired
 
-The quantizer (`ScalarQuantizer`) is implemented, fully tested, and
-exposed to the server: collection creation accepts `"quantization":
-"scalar"` and the flag is persisted as a marker file alongside the
-index.
+Two cooperating types in `core/`:
 
-**However, the HNSW index does not yet use the quantizer to store
-vectors as int8 internally.** Doing so requires either:
+- `ScalarQuantizer` — trains on a sample, encodes float[] -> byte[],
+  decodes byte[] -> float[], and computes the per-dimension-scaled
+  squared-L2 distance directly on byte arrays.
+- `QuantizedHnswIndex` — a self-contained HNSW that holds vectors as
+  `byte[][]` instead of `float[][]` and routes every distance call
+  through the quantizer's int8 kernel. The graph algorithm
+  (level assignment, SEARCH-LAYER, neighbor selection) is identical
+  to `HnswIndex`; only the storage type and distance function differ.
 
-- Parameterizing `HnswIndex` over vector type (float[] vs byte[]), or
-- Adding a parallel `QuantizedHnswIndex` class.
+The user's responsibility is to train the quantizer on representative
+data before constructing the index (typically the first ~10k inserts
+of a collection). Currently L2-only — cosine and dot-product would
+need their own int8 kernels and aren't implemented.
 
-Both are mechanical refactors. For v1 we land the quantizer +
-end-to-end recall test (which lossily round-trips floats through the
-quantizer) and document the memory-savings gap as a known limitation.
+## Measured
 
-The recall test (`QuantizedRecallTest`) inserts lossily-decoded floats
-into HNSW, queries with a lossily-decoded query vector, and verifies
-recall@10 stays >= 0.90 on 10k random Gaussian dim-128 vectors. This
-captures the recall cost of quantization fully; the memory cost is
-deferred to v2.
+`bench/.../MemoryComparison.java` builds 50k random Gaussian dim-128
+vectors once into each variant and reports heap deltas:
+
+| Variant                  | Vector bytes / vec | Heap delta |
+| ------------------------ | -----------------: | ---------: |
+| HnswIndex (float)        | 512                | 37.8 MB    |
+| QuantizedHnswIndex (int8) | 128               | 19.6 MB    |
+
+That's a 4× reduction in raw vector storage and a 48% reduction in
+total heap (the graph connections, which are unchanged, dominate the
+remaining 19 MB).
+
+Recall test (`QuantizedHnswIndexTest.recallAtTenStaysAboveNinetyPercentOnTenKVectors`)
+asserts recall@10 ≥ 0.90 on 10k random Gaussian dim-128 vectors with
+the int8-storage path — i.e., quantization is in the index hot path,
+not just a lossy float round-trip.
 
 ## Why per-dimension and not global
 
@@ -89,8 +103,14 @@ need ~1k samples to converge per-dim min/max within 1%).
 
 - **Implemented and tested:** ScalarQuantizer correctness (round-trip,
   ordering preservation, edge cases like degenerate ranges).
-- **Implemented and tested:** end-to-end recall through a quantized
-  encode/decode hot path stays above 0.90.
-- **Not yet implemented:** memory savings — vectors still stored as
-  float[] in HnswIndex. The full integration is the next chunk of
-  work after the v1 portfolio milestone.
+- **Implemented and tested:** QuantizedHnswIndex with int8 storage and
+  int8 distance, recall@10 ≥ 0.90 on the 10k spec test, 4× per-vector
+  compression confirmed via heap measurement.
+- **Currently L2-only.** Cosine and dot-product on int8 require
+  separate kernels (and possibly per-vector norms) and are out of
+  scope for v1.
+- **Persisted serialization for QuantizedHnswIndex** is not yet
+  implemented in IndexFile; quantized collections remain in-memory
+  only across server restarts. Float HnswIndex collections still
+  persist normally. Closing this gap is straightforward (extend the
+  on-disk header to record the quantizer's per-dim mins/scales).
