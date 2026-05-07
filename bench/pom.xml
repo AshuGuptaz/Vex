@@ -71,6 +71,122 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.5.0</version>
+            </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- Re-run synthetic benchmarks: mvn -pl bench -am -Pbench-recall verify -->
+        <profile>
+            <id>bench-recall</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>recall-sweep</id>
+                                <phase>verify</phase>
+                                <goals><goal>java</goal></goals>
+                                <configuration>
+                                    <mainClass>com.vex.bench.RecallSweep</mainClass>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!-- Heap comparison: mvn -pl bench -am -Pbench-memory verify -->
+        <profile>
+            <id>bench-memory</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>memory-comparison</id>
+                                <phase>verify</phase>
+                                <goals><goal>java</goal></goals>
+                                <configuration>
+                                    <mainClass>com.vex.bench.MemoryComparison</mainClass>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!-- JMH percentile distribution: mvn -pl bench -am -Pbench-jmh verify -->
+        <profile>
+            <id>bench-jmh</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>jmh</id>
+                                <phase>verify</phase>
+                                <goals><goal>exec</goal></goals>
+                                <configuration>
+                                    <executable>java</executable>
+                                    <arguments>
+                                        <argument>-jar</argument>
+                                        <argument>${project.build.directory}/${jmh.uberjar.name}.jar</argument>
+                                        <argument>QueryLatency</argument>
+                                        <argument>-wi</argument>
+                                        <argument>1</argument>
+                                        <argument>-i</argument>
+                                        <argument>1</argument>
+                                        <argument>-f</argument>
+                                        <argument>1</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!-- SIFT-1M: mvn -pl bench -am -Pbench-sift -Dsift.dir=$HOME/sift verify -->
+        <profile>
+            <id>bench-sift</id>
+            <properties>
+                <sift.dir>${user.home}/sift</sift.dir>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>sift</id>
+                                <phase>verify</phase>
+                                <goals><goal>java</goal></goals>
+                                <configuration>
+                                    <mainClass>com.vex.bench.SiftBenchmark</mainClass>
+                                    <arguments>
+                                        <argument>${sift.dir}</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
