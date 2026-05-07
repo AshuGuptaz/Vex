@@ -52,9 +52,182 @@ import java.util.Set;
 public final class IndexFile {
 
   public static final byte[] MAGIC = new byte[] {'V', 'E', 'X', '1'};
+  public static final byte[] MAGIC_QUANT = new byte[] {'V', 'E', 'X', 'Q'};
   public static final int VERSION = 1;
 
   private IndexFile() {}
+
+  /** Returns true if {@code path} is a quantized index file (magic "VEXQ"). */
+  public static boolean isQuantized(Path path) throws IOException {
+    try (FileChannel ch = FileChannel.open(path, StandardOpenOption.READ)) {
+      ByteBuffer head = ByteBuffer.allocate(4);
+      ch.read(head);
+      head.flip();
+      byte[] magic = new byte[4];
+      head.get(magic);
+      return java.util.Arrays.equals(magic, MAGIC_QUANT);
+    }
+  }
+
+  /** Writes a quantized index to {@code path}. Includes the quantizer state in the file. */
+  public static void writeQuantized(Path path, com.vex.core.QuantizedHnswIndex index)
+      throws IOException {
+    com.vex.core.QuantizedHnswIndex.Snapshot s = index.snapshot();
+    com.vex.core.HnswConfig cfg = index.config();
+    com.vex.core.ScalarQuantizer q = index.quantizer();
+    int dim = cfg.dimension();
+    long entryPointId =
+        (s.entryPoint() >= 0 && s.entryPoint() < s.size()) ? s.ids()[s.entryPoint()] : -1L;
+
+    try (FileChannel ch =
+        FileChannel.open(
+            path,
+            StandardOpenOption.CREATE,
+            StandardOpenOption.WRITE,
+            StandardOpenOption.TRUNCATE_EXISTING)) {
+
+      ByteBuffer header = ByteBuffer.allocate(64).order(ByteOrder.LITTLE_ENDIAN);
+      header.put(MAGIC_QUANT);
+      header.putInt(VERSION);
+      header.putInt(dim);
+      header.putInt(cfg.M());
+      header.putInt(cfg.efConstruction());
+      header.putInt(cfg.efSearch());
+      header.put(cfg.metric().id());
+      header.put((byte) 0);
+      header.put((byte) 0);
+      header.put((byte) 0);
+      header.putLong(cfg.randomSeed());
+      header.putLong(s.size());
+      header.putLong(s.liveCount());
+      header.putLong(entryPointId);
+      header.putInt(s.topLayer());
+      header.flip();
+      writeFully(ch, header);
+
+      // Quantizer state.
+      ByteBuffer qstate = ByteBuffer.allocate(8 * dim).order(ByteOrder.LITTLE_ENDIAN);
+      for (float f : q.mins()) qstate.putFloat(f);
+      for (float f : q.scales()) qstate.putFloat(f);
+      qstate.flip();
+      writeFully(ch, qstate);
+
+      // Per-node block: id, level, deleted, byte vector.
+      ByteBuffer node = ByteBuffer.allocate(8 + 4 + 4 + dim).order(ByteOrder.LITTLE_ENDIAN);
+      for (int i = 0; i < s.size(); i++) {
+        node.clear();
+        node.putLong(s.ids()[i]);
+        node.putInt(s.levels()[i]);
+        node.putInt(s.deleted()[i] ? 1 : 0);
+        node.put(s.qVectors()[i]);
+        node.flip();
+        writeFully(ch, node);
+      }
+
+      // Graph block (same layout as float).
+      for (int i = 0; i < s.size(); i++) {
+        int[][] perLayer = s.connections()[i];
+        for (int[] neighbors : perLayer) {
+          ByteBuffer buf =
+              ByteBuffer.allocate(4 + 8 * neighbors.length).order(ByteOrder.LITTLE_ENDIAN);
+          buf.putInt(neighbors.length);
+          for (int slot : neighbors) {
+            buf.putLong(s.ids()[slot]);
+          }
+          buf.flip();
+          writeFully(ch, buf);
+        }
+      }
+      ch.force(true);
+    }
+  }
+
+  /** Reads a quantized index from {@code path}. */
+  public static com.vex.core.QuantizedHnswIndex readQuantized(Path path) throws IOException {
+    try (FileChannel ch = FileChannel.open(path, StandardOpenOption.READ)) {
+      long size = ch.size();
+      MappedByteBuffer mbb = ch.map(MapMode.READ_ONLY, 0, size);
+      mbb.order(ByteOrder.LITTLE_ENDIAN);
+
+      byte[] magic = new byte[4];
+      mbb.get(magic);
+      if (!java.util.Arrays.equals(magic, MAGIC_QUANT)) {
+        throw new IOException("Not a quantized Vex index file (bad magic)");
+      }
+      int version = mbb.getInt();
+      if (version != VERSION) {
+        throw new IOException("Unsupported quantized index version: " + version);
+      }
+      int dim = mbb.getInt();
+      int M = mbb.getInt();
+      int efC = mbb.getInt();
+      int efS = mbb.getInt();
+      byte metricId = mbb.get();
+      mbb.get();
+      mbb.get();
+      mbb.get();
+      long seed = mbb.getLong();
+      long count = mbb.getLong();
+      long liveCount = mbb.getLong();
+      long entryPointId = mbb.getLong();
+      int topLayer = mbb.getInt();
+
+      com.vex.core.DistanceMetric metric = com.vex.core.DistanceMetric.forId(metricId);
+      com.vex.core.HnswConfig cfg = new com.vex.core.HnswConfig(M, efC, efS, dim, metric, seed);
+
+      float[] mins = new float[dim];
+      float[] scales = new float[dim];
+      for (int i = 0; i < dim; i++) mins[i] = mbb.getFloat();
+      for (int i = 0; i < dim; i++) scales[i] = mbb.getFloat();
+      com.vex.core.ScalarQuantizer quantizer = com.vex.core.ScalarQuantizer.of(mins, scales);
+
+      int n = (int) count;
+      long[] ids = new long[n];
+      int[] levels = new int[n];
+      boolean[] deleted = new boolean[n];
+      byte[][] qVectors = new byte[n][];
+
+      for (int i = 0; i < n; i++) {
+        ids[i] = mbb.getLong();
+        levels[i] = mbb.getInt();
+        deleted[i] = mbb.getInt() != 0;
+        byte[] v = new byte[dim];
+        mbb.get(v);
+        qVectors[i] = v;
+      }
+
+      java.util.Map<Long, Integer> idToSlot = new java.util.HashMap<>(n * 2);
+      for (int i = 0; i < n; i++) idToSlot.put(ids[i], i);
+
+      int[][][] connections = new int[n][][];
+      for (int i = 0; i < n; i++) {
+        int level = levels[i];
+        int[][] perLayer = new int[level + 1][];
+        for (int lc = 0; lc <= level; lc++) {
+          int len = mbb.getInt();
+          int[] neighbors = new int[len];
+          for (int k = 0; k < len; k++) {
+            long nid = mbb.getLong();
+            Integer slot = idToSlot.get(nid);
+            neighbors[k] = (slot == null) ? -1 : slot;
+          }
+          perLayer[lc] = neighbors;
+        }
+        connections[i] = perLayer;
+      }
+
+      int entrySlot = -1;
+      if (entryPointId != -1L) {
+        Integer slot = idToSlot.get(entryPointId);
+        if (slot != null) entrySlot = slot;
+      }
+
+      com.vex.core.QuantizedHnswIndex.Snapshot snap =
+          new com.vex.core.QuantizedHnswIndex.Snapshot(
+              n, (int) liveCount, entrySlot, topLayer, ids, levels, deleted, qVectors, connections);
+      return com.vex.core.QuantizedHnswIndex.restore(cfg, quantizer, snap);
+    }
+  }
 
   /** Writes the snapshot of {@code index} to {@code path} (overwriting any existing file). */
   public static void write(Path path, HnswIndex index) throws IOException {
