@@ -111,10 +111,15 @@ public class CollectionManager {
     return c;
   }
 
+  /** Returns the named collection, or null if it doesn't exist. */
   public Collection get(String name) {
     return collections.get(name);
   }
 
+  /**
+   * Returns the named collection or throws {@link NoSuchCollectionException}. Intended for use in
+   * controllers where the manager handles the 404-translation in {@code GlobalExceptionHandler}.
+   */
   public Collection require(String name) {
     Collection c = collections.get(name);
     if (c == null) {
@@ -123,10 +128,15 @@ public class CollectionManager {
     return c;
   }
 
+  /** Returns the names of all live collections in insertion order is NOT guaranteed. */
   public List<String> names() {
     return new ArrayList<>(collections.keySet());
   }
 
+  /**
+   * Closes the named collection and recursively removes its data directory. Returns true if a
+   * collection was dropped; false if it didn't exist.
+   */
   public synchronized boolean drop(String name) throws IOException {
     Collection c = collections.remove(name);
     if (c == null) {

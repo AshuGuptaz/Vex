@@ -82,26 +82,32 @@ public final class IndexStorage implements AutoCloseable {
     return new IndexStorage(dir, index, wal, fsyncOnAppend);
   }
 
+  /** Returns the on-disk directory holding {@code index.vex} and {@code wal.log}. */
   public Path directory() {
     return dir;
   }
 
+  /** Returns the wrapped in-memory index. Use cautiously — bypasses WAL durability. */
   public HnswIndex index() {
     return index;
   }
 
+  /** Returns the index's configuration. */
   public HnswConfig config() {
     return index.config();
   }
 
+  /** Returns the number of live (non-tombstoned) vectors. */
   public int size() {
     return index.size();
   }
 
+  /** Returns true if the id is present and not tombstoned. */
   public boolean contains(long id) {
     return index.contains(id);
   }
 
+  /** Returns the stored vector, or null if absent or tombstoned. */
   public float[] getVector(long id) {
     return index.getVector(id);
   }
