@@ -152,7 +152,10 @@ public final class HnswIndex implements AutoCloseable {
       for (int lc = Math.min(currLayer, level); lc >= 0; lc--) {
         List<Candidate> w = searchLayer(vector, ep, config.efConstruction(), lc);
         int mAtLayer = (lc == 0) ? mMax0 : mMax;
-        List<Integer> neighbors = selectNeighborsHeuristic(vector, w, mAtLayer, lc, false, false);
+        // For the new node's outbound connections, fill all M_max slots — use
+        // keepPrunedConnections=true so the diversity heuristic can't leave the new node
+        // with under-cap connectivity.
+        List<Integer> neighbors = selectNeighborsHeuristic(vector, w, mAtLayer, lc, false, true);
         connections[newIdx][lc] = toIntArray(neighbors);
 
         for (int neighborIdx : neighbors) {
@@ -168,8 +171,13 @@ public final class HnswIndex implements AutoCloseable {
             for (int c : nConn) {
               all.add(new Candidate(c, distance(vectors[neighborIdx], vectors[c])));
             }
-            List<Integer> pruned =
-                selectNeighborsHeuristic(vectors[neighborIdx], all, mPrune, lc, false, false);
+            List<Integer> pruned;
+            if (config.protectNewEdge()) {
+              pruned = selectNeighborsWithProtected(vectors[neighborIdx], all, mPrune, newIdx);
+            } else {
+              pruned =
+                  selectNeighborsHeuristic(vectors[neighborIdx], all, mPrune, lc, false, false);
+            }
             connections[neighborIdx][lc] = toIntArray(pruned);
           }
         }
@@ -369,7 +377,14 @@ public final class HnswIndex implements AutoCloseable {
     return curr;
   }
 
+  /**
+   * Test/debug-only counter: number of distance computations in the most recent searchLayer call.
+   * Not thread-safe; only meaningful for single-threaded benchmarks.
+   */
+  public static volatile long lastSearchLayerVisits = 0;
+
   private List<Candidate> searchLayer(float[] q, Collection<Candidate> ep, int ef, int layer) {
+    long visits = 0;
     BitSet visited = new BitSet(size);
     PriorityQueue<Candidate> candidates =
         new PriorityQueue<>(Comparator.comparingDouble(c -> c.distance));
@@ -395,6 +410,7 @@ public final class HnswIndex implements AutoCloseable {
           continue;
         }
         visited.set(n);
+        visits++;
         float d = distance(q, vectors[n]);
         Candidate fNow = dynamic.peek();
         if (dynamic.size() < ef || (fNow != null && d < fNow.distance)) {
@@ -408,6 +424,9 @@ public final class HnswIndex implements AutoCloseable {
       }
     }
 
+    if (layer == 0) {
+      lastSearchLayerVisits = visits;
+    }
     return new ArrayList<>(dynamic);
   }
 
@@ -466,6 +485,50 @@ public final class HnswIndex implements AutoCloseable {
       while (!discarded.isEmpty() && result.size() < M) {
         result.add(discarded.poll().index);
       }
+    }
+    return result;
+  }
+
+  /**
+   * Heuristic neighbor selection that always keeps {@code mustInclude} in the result. Used during
+   * the bidirectional-edge step of insert: when a neighbor n's connection list is full and we're
+   * adding the just-inserted node X, we want to guarantee X stays in n's list so the back-edge
+   * isn't lost. This is what hnswlib does and is the missing piece that closes most of the recall
+   * gap at scale on uniform data.
+   */
+  private List<Integer> selectNeighborsWithProtected(
+      float[] q, Collection<Candidate> candidates, int M, int mustInclude) {
+    List<Integer> result = new ArrayList<>(M);
+    result.add(mustInclude);
+    PriorityQueue<Candidate> w = new PriorityQueue<>(Comparator.comparingDouble(c -> c.distance));
+    PriorityQueue<Candidate> discarded =
+        new PriorityQueue<>(Comparator.comparingDouble(c -> c.distance));
+    Set<Integer> seen = new HashSet<>();
+    seen.add(mustInclude);
+    for (Candidate c : candidates) {
+      if (seen.add(c.index)) {
+        w.add(c);
+      }
+    }
+    while (!w.isEmpty() && result.size() < M) {
+      Candidate e = w.poll();
+      boolean ok = true;
+      for (int r : result) {
+        if (distance(vectors[e.index], vectors[r]) < e.distance) {
+          ok = false;
+          break;
+        }
+      }
+      if (ok) {
+        result.add(e.index);
+      } else {
+        discarded.add(e);
+      }
+    }
+    // Fill remaining slots from discarded so the cap is honored — otherwise the
+    // neighbor's connection count drops below mPrune and the graph becomes sparse.
+    while (!discarded.isEmpty() && result.size() < M) {
+      result.add(discarded.poll().index);
     }
     return result;
   }

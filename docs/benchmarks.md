@@ -51,15 +51,22 @@ take top 10), averaged over 200 random queries. Three configurations:
 
 | efSearch | float-h | float-s | quant-h | float-h ms | float-s ms |
 | -------: | ------: | ------: | ------: | ---------: | ---------: |
-| 16       | 0.251   | 0.282   | 0.239   | 0.12       | 0.09       |
-| 32       | 0.371   | 0.394   | 0.360   | 0.19       | 0.16       |
-| 64       | 0.508   | 0.508   | 0.500   | 0.32       | 0.29       |
-| 128      | 0.653   | 0.633   | 0.641   | 0.56       | 0.48       |
-| 256      | 0.778   | 0.750   | 0.781   | 1.06       | 0.92       |
+| 16       | 0.232   | 0.249   | 0.240   | 0.15       | 0.12       |
+| 32       | 0.363   | 0.368   | 0.364   | 0.20       | 0.19       |
+| 64       | 0.498   | 0.497   | 0.498   | 0.31       | 0.36       |
+| 128      | 0.649   | 0.647   | 0.650   | 0.56       | 0.57       |
+| 256      | 0.785   | 0.774   | 0.785   | 1.11       | 1.08       |
+
+Numbers above are with the saturation fixes enabled (avg 32
+connections per node at layer 0, 100% at cap).
 
 Build throughput at 100k:
-- Heuristic neighbor selection: ~760 inserts/sec
-- Simple top-M:                  ~1,270 inserts/sec (1.7× faster build)
+- Heuristic neighbor selection: ~480 inserts/sec
+- Simple top-M:                  ~510 inserts/sec
+
+(Slower than the original ~760 ins/sec because keepPrunedConnections
++ protectNewEdge add per-insert work. The quality gain — 22 → 32
+connections per node — is worth the slowdown at scale.)
 
 ### Honest reading of the recall column
 
@@ -77,34 +84,64 @@ Two observations:
    at ef=200. Production HNSW implementations degrade much more gently
    (typically 0.95 → 0.92).
 
-### What I ruled out
+### What I investigated
 
-I added a `useHeuristicNeighborSelection` flag and ran the same sweep
-with simple top-M (Algorithm 3 of the paper). Recall at 100k is
-within 2-3 points of the heuristic — sometimes higher, sometimes
-lower. The diversity heuristic is **not** the cause of the regression.
+I went looking for the cause of the gap and ruled out several
+hypotheses with measurements committed in `bench/...`:
 
-The remaining hypotheses, in priority order:
+1. **Diversity heuristic over-pruning** — added a
+   `useHeuristicNeighborSelection` flag. Simple top-M and the heuristic
+   give recall within 2-3 points at 100k. **Not the cause.**
+2. **Bidirectional edge dropped during pruning** — added a
+   `protectNewEdge` flag (defaults to true) that forces the new node
+   into a full neighbor's connection list. **Helped graph saturation,
+   didn't move recall.**
+3. **Graph density too low** — `bench/.../GraphInspect.java` reports
+   per-layer connection histograms. Initially layer 0 had avg 22.2
+   connections per node out of 32 cap (28% saturation). After enabling
+   `keepPrunedConnections=true` on the outbound selection AND adding
+   a discarded-fallback to the protected pruning, layer 0 hit 32 avg
+   with 100% saturation.
 
-1. **The bidirectional-edge prune** at insertion may be too aggressive
-   in dropping the new node from a neighbor's list. hnswlib has a
-   slightly different protect-the-new-edge convention here that I
-   haven't reproduced.
-2. **Initial dynamic-list population during searchLayer** initializes
-   `dynamic` with the entire `ep` set (size up to efConstruction).
-   For deep layers this may cause early termination because
-   `f` (worst in dynamic) is already a tight cluster, rejecting
-   useful explorations.
-3. **No "bridge" between newly-promoted top-layer nodes**. When a node
-   is the first at a new top layer, its connections at the new layer
-   are empty. Greedy descent at that layer is a no-op until the
-   second top-layer node arrives, which can take a long time at low
-   layers.
+**The graph is now correctly saturated. Recall at fixed ef is still
+below hnswlib.**
 
-The quickest next experiment would be to re-run with M=32 and
-efConstruction=400. That denser graph would almost certainly close
-most of the recall gap, at the cost of 2-4× build time and memory.
-Documented as the v2 priority.
+What remains shows up in `bench/.../QueryDebug.java`:
+
+```
+ef=32     recall@10=0.40  visits=1132   (1.1% of N)
+ef=64     recall@10=0.52  visits=1933   (1.9%)
+ef=128    recall@10=0.67  visits=3478   (3.5%)
+ef=256    recall@10=0.82  visits=6188   (6.2%)
+ef=512    recall@10=0.91  visits=10715  (10.7%)
+ef=1024   recall@10=0.94  visits=17625  (17.6%)
+```
+
+The algorithm is correct (recall climbs monotonically toward 1.0 as
+ef grows). **Per-visit, my searchLayer is less informative than
+hnswlib's** — it takes ~2-3× more distance evaluations for the same
+recall. The remaining hypotheses for this last gap:
+
+- **Initial dynamic-list seeding from previous-layer W**. When
+  searchLayer is called between insert layers with `ep = previous
+  layer's W` (up to efC = 200 elements), `dynamic` is pre-populated
+  with up to 200 candidates. The "furthest in dynamic" is already
+  pretty close, so the early-terminate condition kicks in sooner
+  than ideal at lower layers.
+- **No multi-entry-point at layer 0 for queries**. The paper's
+  Algorithm 5 uses a single greedy-descent result as the layer-0 ep.
+  Some implementations seed layer-0 with the top-N from the descent
+  to get more diverse starting points. Not implemented.
+
+Both are scoped to v2.
+
+### Practical guidance
+
+- For ≥ 0.90 recall at this dataset shape: **use efSearch ≥ 512** with
+  M=16, or bump M to 32.
+- The default `efSearch=50` from `HnswConfig.defaults` is tuned for
+  the smaller workloads in the unit tests, not for production. Tune
+  per your latency / recall budget.
 
 ### Quantization recall delta
 

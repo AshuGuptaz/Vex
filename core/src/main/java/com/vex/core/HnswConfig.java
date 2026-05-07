@@ -21,7 +21,8 @@ public record HnswConfig(
     int dimension,
     DistanceMetric metric,
     long randomSeed,
-    boolean useHeuristicNeighborSelection) {
+    boolean useHeuristicNeighborSelection,
+    boolean protectNewEdge) {
 
   public HnswConfig {
     if (M < 2) {
@@ -42,7 +43,27 @@ public record HnswConfig(
     }
   }
 
-  /** Backwards-compatible constructor. Defaults to the heuristic neighbor selection. */
+  /** 7-arg constructor with protectNewEdge defaulting to true (matches hnswlib behavior). */
+  public HnswConfig(
+      int M,
+      int efConstruction,
+      int efSearch,
+      int dimension,
+      DistanceMetric metric,
+      long randomSeed,
+      boolean useHeuristicNeighborSelection) {
+    this(
+        M,
+        efConstruction,
+        efSearch,
+        dimension,
+        metric,
+        randomSeed,
+        useHeuristicNeighborSelection,
+        true);
+  }
+
+  /** 6-arg backwards-compatible constructor. Defaults to heuristic neighbor selection. */
   public HnswConfig(
       int M,
       int efConstruction,
@@ -50,7 +71,7 @@ public record HnswConfig(
       int dimension,
       DistanceMetric metric,
       long randomSeed) {
-    this(M, efConstruction, efSearch, dimension, metric, randomSeed, true);
+    this(M, efConstruction, efSearch, dimension, metric, randomSeed, true, true);
   }
 
   /** Returns reasonable defaults: M=16, efConstruction=200, efSearch=50, seed=42. */
