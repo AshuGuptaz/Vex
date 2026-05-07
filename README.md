@@ -166,16 +166,19 @@ ground for a wider audience.
 
 ```bash
 # Java 17 required; on macOS:  brew install openjdk@17
-mvn -B clean verify
+make verify              # full reactor: format check + tests
+make run                 # start the server on :8080
 
-# Run the server locally:
-mvn -pl server spring-boot:run
-
-# Run benchmarks:
-mvn -B -pl bench -am package -DskipTests
-java -cp bench/target/vex-bench.jar com.vex.bench.RecallSweep
-java -jar bench/target/vex-bench.jar QueryLatency -wi 1 -i 1 -f 1
+# Benchmarks (Maven profiles in bench/pom.xml):
+make bench-recall        # synthetic 100k recall@10 sweep
+make bench-memory        # float vs int8 heap-delta comparison
+make bench-jmh           # JMH percentile distribution (P50/P99)
+make sift-data           # download SIFT-1M to ~/sift
+make bench-sift          # SIFT-1M sweep (after sift-data)
 ```
+
+`make help` lists every target. See [CONTRIBUTING.md](CONTRIBUTING.md)
+for the full setup + commit conventions.
 
 ## Acknowledgements
 
