@@ -20,16 +20,22 @@ actually worked. Two weeks later, this is the thing I built to
 It is not a Pinecone replacement. It is a Java project that:
 
 - Implements HNSW from scratch (Algorithms 1–5 of the paper, including
-  the diversity heuristic for neighbor selection).
+  the diversity heuristic for neighbor selection — and a simple top-M
+  fallback behind a config flag).
 - Persists to disk with mmap-backed checkpoints + a CRC32 write-ahead
   log + atomic checkpoint rename, with a passing crash-recovery test
   via a child JVM that calls `Runtime.halt`.
 - Ships a Spring Boot REST API with a hand-rolled recursive-descent
   filter parser (no ANTLR).
-- Includes scalar quantization with per-dim int8 mapping and an
-  ordering-preserving int8 distance kernel.
-- Has JMH benchmarks that produce real, committed numbers — including
-  one number I'm not proud of, documented honestly.
+- Has a real int8 quantized index (`QuantizedHnswIndex`) — vectors
+  stored as `byte[]`, distance computed directly on int8, **4×
+  per-vector compression** confirmed via heap measurement.
+- Has JMH benchmarks plus four `make bench-*` targets that produce
+  real, committed numbers — including one number I'm not proud of,
+  documented honestly.
+
+**Stats:** 114 tests, 29 commits, ~5,000 LOC of Java, 14 documents
+under `docs/`, 7 ADRs.
 
 ## Quick start
 
