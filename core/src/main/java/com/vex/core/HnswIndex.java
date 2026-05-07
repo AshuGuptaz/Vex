@@ -92,11 +92,21 @@ public final class HnswIndex implements AutoCloseable {
   }
 
   /**
-   * Inserts a vector with the given id. Throws if the id is already present and live.
+   * Inserts a vector with the given id. Alias for {@link #insert(long, float[])}.
    *
    * @throws IllegalArgumentException if the dimension mismatches or the id already exists.
    */
   public void add(long id, float[] vector) {
+    insert(id, vector);
+  }
+
+  /**
+   * Inserts a vector with the given id. Throws if the id is already present and live. This is the
+   * canonical name from the paper's Algorithm 1.
+   *
+   * @throws IllegalArgumentException if the dimension mismatches or the id already exists.
+   */
+  public void insert(long id, float[] vector) {
     if (vector.length != config.dimension()) {
       throw new IllegalArgumentException(
           "Expected dim " + config.dimension() + " but got " + vector.length);

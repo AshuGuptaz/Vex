@@ -110,11 +110,16 @@ public final class QuantizedHnswIndex implements AutoCloseable {
     }
   }
 
+  /** Inserts a vector. Alias for {@link #insert(long, float[])}. */
+  public void add(long id, float[] vector) {
+    insert(id, vector);
+  }
+
   /**
    * Inserts a float vector by encoding it through the quantizer. Throws if the id is already
-   * present and live.
+   * present and live. This is the canonical name from the paper's Algorithm 1.
    */
-  public void add(long id, float[] vector) {
+  public void insert(long id, float[] vector) {
     if (vector.length != config.dimension()) {
       throw new IllegalArgumentException(
           "Expected dim " + config.dimension() + " but got " + vector.length);
