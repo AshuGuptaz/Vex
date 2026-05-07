@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/** REST surface for collection lifecycle (create / get / list / drop). */
 @RestController
 @RequestMapping("/collections")
 public class CollectionController {
@@ -28,6 +29,7 @@ public class CollectionController {
     this.manager = manager;
   }
 
+  /** Creates a new collection. Returns 201 with the collection metadata. */
   @PostMapping
   public ResponseEntity<CollectionInfoResponse> create(
       @Valid @RequestBody CreateCollectionRequest req) throws IOException {
@@ -38,16 +40,19 @@ public class CollectionController {
     return ResponseEntity.status(HttpStatus.CREATED).body(toInfo(c));
   }
 
+  /** Lists the names of all live collections. */
   @GetMapping
   public List<String> list() {
     return manager.names();
   }
 
+  /** Returns metadata for a single collection, or 404 if it doesn't exist. */
   @GetMapping("/{name}")
   public CollectionInfoResponse info(@PathVariable String name) {
     return toInfo(manager.require(name));
   }
 
+  /** Deletes a collection and its data directory. Returns 204 on success, 404 if missing. */
   @DeleteMapping("/{name}")
   public ResponseEntity<Void> drop(@PathVariable String name) throws IOException {
     boolean ok = manager.drop(name);

@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/** REST surface for vector operations within a collection (upsert, query, get, delete). */
 @RestController
 @RequestMapping("/collections/{name}")
 public class VectorController {
@@ -31,6 +32,7 @@ public class VectorController {
     this.manager = manager;
   }
 
+  /** Inserts or replaces a single vector. Returns 202 Accepted. */
   @PostMapping("/upsert")
   public ResponseEntity<Void> upsert(
       @PathVariable String name, @Valid @RequestBody UpsertRequest req) throws IOException {
@@ -40,6 +42,7 @@ public class VectorController {
     return ResponseEntity.accepted().build();
   }
 
+  /** Batch upsert of many vectors in one request. Returns 202 Accepted. */
   @PostMapping("/upsert/batch")
   public ResponseEntity<Void> batch(
       @PathVariable String name, @Valid @RequestBody BatchUpsertRequest req) throws IOException {
@@ -50,6 +53,7 @@ public class VectorController {
     return ResponseEntity.accepted().build();
   }
 
+  /** Top-k filtered query against a collection. */
   @PostMapping("/query")
   public List<QueryResponseItem> query(
       @PathVariable String name, @Valid @RequestBody QueryRequest req) {
@@ -62,6 +66,7 @@ public class VectorController {
     return out;
   }
 
+  /** Returns the stored vector + payload for an id, or 404 if absent. */
   @GetMapping("/vectors/{id}")
   public ResponseEntity<VectorResponse> getVector(
       @PathVariable String name, @PathVariable long id) {
@@ -74,6 +79,7 @@ public class VectorController {
     return ResponseEntity.ok(new VectorResponse(id, v, p == null ? Map.of() : p));
   }
 
+  /** Soft-deletes a single vector. Returns 204 on success, 404 if the id is unknown. */
   @DeleteMapping("/vectors/{id}")
   public ResponseEntity<Void> deleteVector(@PathVariable String name, @PathVariable long id)
       throws IOException {
