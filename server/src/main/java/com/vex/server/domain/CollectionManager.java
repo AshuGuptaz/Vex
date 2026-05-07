@@ -128,7 +128,7 @@ public class CollectionManager {
     return c;
   }
 
-  /** Returns the names of all live collections in insertion order is NOT guaranteed. */
+  /** Returns the names of all live collections. Order is not guaranteed. */
   public List<String> names() {
     return new ArrayList<>(collections.keySet());
   }
