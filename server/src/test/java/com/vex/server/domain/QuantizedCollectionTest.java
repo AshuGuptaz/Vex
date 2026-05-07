@@ -18,7 +18,7 @@ class QuantizedCollectionTest {
   void preTrainingQueriesUseBruteForce(@TempDir Path tmp) throws Exception {
     HnswConfig cfg = new HnswConfig(16, 200, 50, DIM, new L2Distance(), 7L);
     PayloadStore p = PayloadStore.open(tmp.resolve("payloads.db"), false);
-    Collection c = new Collection("q", cfg, p, true);
+    Collection c = new Collection("q", cfg, p, tmp, true);
 
     c.upsert(1L, vec(1f), Map.of());
     c.upsert(2L, vec(2f), Map.of());
@@ -37,7 +37,7 @@ class QuantizedCollectionTest {
   void quantizerTrainsAtThresholdAndQueryShiftsToHnsw(@TempDir Path tmp) throws Exception {
     HnswConfig cfg = new HnswConfig(16, 100, 50, DIM, new L2Distance(), 11L);
     PayloadStore p = PayloadStore.open(tmp.resolve("payloads.db"), false);
-    Collection c = new Collection("q", cfg, p, true);
+    Collection c = new Collection("q", cfg, p, tmp, true);
 
     int n = Collection.QUANTIZER_TRAINING_THRESHOLD;
     Random r = new Random(11L);
@@ -61,7 +61,7 @@ class QuantizedCollectionTest {
   void deleteWorksInBothModes(@TempDir Path tmp) throws Exception {
     HnswConfig cfg = new HnswConfig(16, 100, 50, DIM, new L2Distance(), 13L);
     PayloadStore p = PayloadStore.open(tmp.resolve("payloads.db"), false);
-    Collection c = new Collection("q", cfg, p, true);
+    Collection c = new Collection("q", cfg, p, tmp, true);
 
     c.upsert(1L, vec(1f), Map.of("k", "v"));
     c.upsert(2L, vec(2f), Map.of());
@@ -72,10 +72,43 @@ class QuantizedCollectionTest {
   }
 
   @Test
+  void trainedQuantizedCollectionSurvivesCloseAndReopenViaCollectionManager(@TempDir Path tmpRoot)
+      throws Exception {
+    Path data = tmpRoot.resolve("data");
+    java.nio.file.Files.createDirectories(data);
+    String name = "qpersist";
+    int n = Collection.QUANTIZER_TRAINING_THRESHOLD + 5;
+
+    {
+      CollectionManager mgr = new CollectionManager(data, false);
+      Collection c = mgr.create(name, DIM, "l2", 16, 100, true);
+      Random r = new Random(7L);
+      for (int i = 0; i < n; i++) {
+        float[] v = new float[DIM];
+        for (int j = 0; j < DIM; j++) {
+          v[j] = (float) r.nextGaussian();
+        }
+        c.upsert(i, v, Map.of());
+      }
+      assertThat(c.isQuantizerTrained()).isTrue();
+      mgr.closeAll();
+    }
+
+    CollectionManager mgr2 = new CollectionManager(data, false);
+    Collection reopened = mgr2.get(name);
+    assertThat(reopened).isNotNull();
+    assertThat(reopened.size()).isEqualTo(n);
+    assertThat(reopened.contains(0L)).isTrue();
+    var hits = reopened.query(new float[DIM], 5, null, null);
+    assertThat(hits).hasSize(5);
+    mgr2.closeAll();
+  }
+
+  @Test
   void getVectorReturnsLossyDecodeAfterTraining(@TempDir Path tmp) throws Exception {
     HnswConfig cfg = new HnswConfig(16, 100, 50, DIM, new L2Distance(), 19L);
     PayloadStore p = PayloadStore.open(tmp.resolve("payloads.db"), false);
-    Collection c = new Collection("q", cfg, p, true);
+    Collection c = new Collection("q", cfg, p, tmp, true);
 
     int n = Collection.QUANTIZER_TRAINING_THRESHOLD;
     Random r = new Random(19L);

@@ -7,8 +7,11 @@ import com.vex.core.ScalarQuantizer;
 import com.vex.core.SearchResult;
 import com.vex.server.filter.FilterCompiler;
 import com.vex.server.filter.FilterPredicate;
+import com.vex.storage.IndexFile;
 import com.vex.storage.IndexStorage;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -40,6 +43,7 @@ public final class Collection implements AutoCloseable {
   private final HnswConfig config;
   private final boolean quantized;
   private final PayloadStore payloads;
+  private final Path dir;
 
   // Float-mode state.
   private final IndexStorage floatStorage;
@@ -56,15 +60,30 @@ public final class Collection implements AutoCloseable {
     this.quantized = false;
     this.payloads = payloads;
     this.floatStorage = storage;
+    this.dir = storage.directory();
   }
 
-  /** Quantized-mode constructor. {@code config} is captured for later QuantizedHnswIndex build. */
-  public Collection(String name, HnswConfig config, PayloadStore payloads, boolean quantized) {
+  /** Quantized-mode constructor for a fresh (untrained) collection. */
+  public Collection(
+      String name, HnswConfig config, PayloadStore payloads, Path dir, boolean quantized) {
     this.name = name;
     this.config = config;
     this.quantized = quantized;
     this.payloads = payloads;
+    this.dir = dir;
     this.floatStorage = null;
+  }
+
+  /** Quantized-mode constructor restoring from a previously-persisted index. */
+  public Collection(String name, QuantizedHnswIndex restored, PayloadStore payloads, Path dir) {
+    this.name = name;
+    this.config = restored.config();
+    this.quantized = true;
+    this.payloads = payloads;
+    this.dir = dir;
+    this.floatStorage = null;
+    this.qIndex = restored;
+    this.quantizer = restored.quantizer();
   }
 
   /** Returns the collection's user-facing name. */
@@ -243,11 +262,30 @@ public final class Collection implements AutoCloseable {
     return results.subList(0, Math.min(k, results.size()));
   }
 
+  /**
+   * Persists the trained quantized index (no-op for the float path or for an untrained quantized
+   * collection — the float path persists continuously via the WAL).
+   */
+  public synchronized void flush() throws IOException {
+    if (quantized && qIndex != null) {
+      Path indexFile = dir.resolve(IndexStorage.INDEX_FILE);
+      Path tmp = dir.resolve(IndexStorage.INDEX_FILE + ".tmp");
+      Files.createDirectories(dir);
+      IndexFile.writeQuantized(tmp, qIndex);
+      Files.move(
+          tmp,
+          indexFile,
+          java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+          java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+    }
+  }
+
   @Override
   public synchronized void close() throws IOException {
     if (!quantized) {
       floatStorage.close();
     } else if (qIndex != null) {
+      flush();
       qIndex.close();
     }
     payloads.close();

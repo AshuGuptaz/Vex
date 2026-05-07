@@ -2,6 +2,8 @@ package com.vex.server.domain;
 
 import com.vex.core.DistanceMetric;
 import com.vex.core.HnswConfig;
+import com.vex.core.QuantizedHnswIndex;
+import com.vex.storage.IndexFile;
 import com.vex.storage.IndexStorage;
 import jakarta.annotation.PreDestroy;
 import java.io.IOException;
@@ -46,13 +48,27 @@ public class CollectionManager {
       var dirs = stream.filter(Files::isDirectory).sorted().toList();
       for (Path dir : dirs) {
         String name = dir.getFileName().toString();
-        boolean quantized = Files.exists(dir.resolve(".quantized"));
-        if (quantized) {
-          // Quantized collections are not persisted in v1 (ADR 005). Skip loading.
-          LOG.warn("Skipping load of quantized collection '{}' (no on-disk format yet)", name);
+        Path indexFile = dir.resolve(IndexStorage.INDEX_FILE);
+        boolean quantizedMarker = Files.exists(dir.resolve(".quantized"));
+
+        if (Files.exists(indexFile) && IndexFile.isQuantized(indexFile)) {
+          try {
+            QuantizedHnswIndex restored = IndexFile.readQuantized(indexFile);
+            PayloadStore payloads = PayloadStore.open(dir.resolve("payloads.db"), fsyncOnAppend);
+            collections.put(name, new Collection(name, restored, payloads, dir));
+            LOG.info("Loaded quantized collection '{}' ({} vectors)", name, restored.size());
+          } catch (IOException e) {
+            LOG.warn("Failed to load quantized collection at {}: {}", dir, e.getMessage());
+          }
           continue;
         }
-        Path indexFile = dir.resolve(IndexStorage.INDEX_FILE);
+
+        if (quantizedMarker) {
+          // Quantized collection that hadn't trained yet on shutdown — start fresh.
+          LOG.warn("Quantized collection '{}' has no persisted index; starting fresh", name);
+          continue;
+        }
+
         if (!Files.exists(indexFile)) {
           continue;
         }
@@ -85,7 +101,7 @@ public class CollectionManager {
     Collection c;
     if (quantized) {
       Files.createFile(dir.resolve(".quantized"));
-      c = new Collection(name, cfg, payloads, true);
+      c = new Collection(name, cfg, payloads, dir, true);
       LOG.info(
           "Created quantized collection '{}' (dim={}, metric={}, M={}, efC={}, "
               + "training threshold={})",

@@ -161,7 +161,7 @@ ground for a wider audience.
 | ✅ | Scalar quantization with int8 storage (4× compression, recall ≥ 0.90) |
 | ✅ | JMH benchmark + recall sweep + heap-comparison tool |
 | ✅ | Docker / Jib / docker-compose deploy paths |
-| 🚧 | Persisting QuantizedHnswIndex to disk (ADR 005) |
+| ✅ | Persisting QuantizedHnswIndex to disk (ADR 005) |
 | 🚧 | Close the recall gap at 100k+ scale ([benchmarks.md](docs/benchmarks.md)) |
 | 🚧 | int8 cosine + dot product kernels |
 | ❌ | Sharding, replication, product quantization (ADR 007 explains why) |

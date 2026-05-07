@@ -109,8 +109,15 @@ need ~1k samples to converge per-dim min/max within 1%).
 - **Currently L2-only.** Cosine and dot-product on int8 require
   separate kernels (and possibly per-vector norms) and are out of
   scope for v1.
-- **Persisted serialization for QuantizedHnswIndex** is not yet
-  implemented in IndexFile; quantized collections remain in-memory
-  only across server restarts. Float HnswIndex collections still
-  persist normally. Closing this gap is straightforward (extend the
-  on-disk header to record the quantizer's per-dim mins/scales).
+- **Persistence is implemented.** `IndexFile.writeQuantized` /
+  `readQuantized` serialize a quantized index — separate magic
+  ("VEXQ" vs "VEX1"), with the per-dim mins/scales written after the
+  header. Quantized collections survive `close` + reopen via
+  `CollectionManager.loadExisting`, verified by
+  `QuantizedCollectionTest#trainedQuantizedCollectionSurvivesCloseAndReopenViaCollectionManager`.
+- **WAL is float-only.** Quantized collections do not append to a
+  write-ahead log during the training phase or after — the on-disk
+  format is rewritten on each `flush()`. Acknowledged inserts between
+  flushes can be lost on a hard crash. This trade-off is acceptable
+  because quantized collections target the bulk-then-query workload;
+  durability-sensitive callers should use the float path.
