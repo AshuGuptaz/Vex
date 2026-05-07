@@ -65,8 +65,7 @@ public final class RecallSweep {
       boolean useHeuristic) {
     ScalarQuantizer quantizer = quantize ? ScalarQuantizer.train(data) : null;
 
-    HnswConfig cfg =
-        new HnswConfig(16, 200, 50, DIM, new L2Distance(), SEED, useHeuristic);
+    HnswConfig cfg = new HnswConfig(16, 200, 50, DIM, new L2Distance(), SEED, useHeuristic);
     HnswIndex idx = new HnswIndex(cfg);
 
     long buildStart = System.nanoTime();

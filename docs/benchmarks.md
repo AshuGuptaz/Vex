@@ -42,15 +42,24 @@ P99 at ef=64 is **0.43 ms**, well below the 5 ms target. Headroom for
 ## Recall vs efSearch
 
 Recall@10 against a brute-force baseline (sort all 100k by distance,
-take top 10), averaged over 200 random queries.
+take top 10), averaged over 200 random queries. Three configurations:
 
-| efSearch | recall@10 (float) | recall@10 (quantized) | avg latency (ms) |
-| -------: | ----------------: | --------------------: | ---------------: |
-| 16       | 0.254             | 0.240                 | 0.12             |
-| 32       | 0.374             | 0.364                 | 0.19             |
-| 64       | 0.504             | 0.506                 | 0.32             |
-| 128      | 0.652             | 0.644                 | 0.55             |
-| 256      | 0.780             | 0.779                 | 1.03             |
+- **float-h** — float vectors, Algorithm 4 heuristic neighbor selection.
+- **float-s** — float vectors, Algorithm 3 simple top-M.
+- **quant-h** — vectors round-tripped through scalar quantization (lossy
+  encode/decode), heuristic neighbor selection.
+
+| efSearch | float-h | float-s | quant-h | float-h ms | float-s ms |
+| -------: | ------: | ------: | ------: | ---------: | ---------: |
+| 16       | 0.251   | 0.282   | 0.239   | 0.12       | 0.09       |
+| 32       | 0.371   | 0.394   | 0.360   | 0.19       | 0.16       |
+| 64       | 0.508   | 0.508   | 0.500   | 0.32       | 0.29       |
+| 128      | 0.653   | 0.633   | 0.641   | 0.56       | 0.48       |
+| 256      | 0.778   | 0.750   | 0.781   | 1.06       | 0.92       |
+
+Build throughput at 100k:
+- Heuristic neighbor selection: ~760 inserts/sec
+- Simple top-M:                  ~1,270 inserts/sec (1.7× faster build)
 
 ### Honest reading of the recall column
 
@@ -68,13 +77,34 @@ Two observations:
    at ef=200. Production HNSW implementations degrade much more gently
    (typically 0.95 → 0.92).
 
-The gap is real and is most likely in the neighbor-pruning step —
-SELECT-NEIGHBORS-HEURISTIC may be over-pruning the connection graph
-at scale, leaving the layer-0 traversal under-connected for large N.
-The exact cause is on the v2 list. The implementation is honest enough
-about Algorithm 4 of the paper to pass at 10k; the path to closing the
-gap at 100k+ is profile + tune (or rewrite the heuristic against
-hnswlib's reference for a comparison).
+### What I ruled out
+
+I added a `useHeuristicNeighborSelection` flag and ran the same sweep
+with simple top-M (Algorithm 3 of the paper). Recall at 100k is
+within 2-3 points of the heuristic — sometimes higher, sometimes
+lower. The diversity heuristic is **not** the cause of the regression.
+
+The remaining hypotheses, in priority order:
+
+1. **The bidirectional-edge prune** at insertion may be too aggressive
+   in dropping the new node from a neighbor's list. hnswlib has a
+   slightly different protect-the-new-edge convention here that I
+   haven't reproduced.
+2. **Initial dynamic-list population during searchLayer** initializes
+   `dynamic` with the entire `ep` set (size up to efConstruction).
+   For deep layers this may cause early termination because
+   `f` (worst in dynamic) is already a tight cluster, rejecting
+   useful explorations.
+3. **No "bridge" between newly-promoted top-layer nodes**. When a node
+   is the first at a new top layer, its connections at the new layer
+   are empty. Greedy descent at that layer is a no-op until the
+   second top-layer node arrives, which can take a long time at low
+   layers.
+
+The quickest next experiment would be to re-run with M=32 and
+efConstruction=400. That denser graph would almost certainly close
+most of the recall gap, at the cost of 2-4× build time and memory.
+Documented as the v2 priority.
 
 ### Quantization recall delta
 
