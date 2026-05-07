@@ -259,6 +259,83 @@ public final class HnswIndex implements AutoCloseable {
     // In-memory only; storage layer wraps and provides flush/close semantics.
   }
 
+  /** Returns a deep copy of the index's internal state for serialization. */
+  public Snapshot snapshot() {
+    lock.readLock().lock();
+    try {
+      long[] idsCopy = Arrays.copyOf(ids, size);
+      int[] levelsCopy = Arrays.copyOf(levels, size);
+      boolean[] deletedCopy = Arrays.copyOf(deleted, size);
+      float[][] vectorsCopy = new float[size][];
+      int[][][] connectionsCopy = new int[size][][];
+      for (int i = 0; i < size; i++) {
+        vectorsCopy[i] = vectors[i].clone();
+        int[][] perLayer = connections[i];
+        int[][] perLayerCopy = new int[perLayer.length][];
+        for (int lc = 0; lc < perLayer.length; lc++) {
+          perLayerCopy[lc] = perLayer[lc].clone();
+        }
+        connectionsCopy[i] = perLayerCopy;
+      }
+      return new Snapshot(
+          size,
+          liveCount,
+          entryPoint,
+          topLayer,
+          idsCopy,
+          levelsCopy,
+          deletedCopy,
+          vectorsCopy,
+          connectionsCopy);
+    } finally {
+      lock.readLock().unlock();
+    }
+  }
+
+  /** Rebuilds an index from a previously-taken snapshot. The arrays in {@code s} are not copied. */
+  public static HnswIndex restore(HnswConfig config, Snapshot s) {
+    HnswIndex idx = new HnswIndex(config);
+    idx.lock.writeLock().lock();
+    try {
+      int cap = Math.max(INITIAL_CAPACITY, Integer.highestOneBit(Math.max(1, s.size)) << 1);
+      if (cap < s.size) {
+        cap = s.size;
+      }
+      idx.vectors = new float[cap][];
+      idx.levels = new int[cap];
+      idx.ids = new long[cap];
+      idx.deleted = new boolean[cap];
+      idx.connections = new int[cap][][];
+      System.arraycopy(s.vectors, 0, idx.vectors, 0, s.size);
+      System.arraycopy(s.levels, 0, idx.levels, 0, s.size);
+      System.arraycopy(s.ids, 0, idx.ids, 0, s.size);
+      System.arraycopy(s.deleted, 0, idx.deleted, 0, s.size);
+      System.arraycopy(s.connections, 0, idx.connections, 0, s.size);
+      idx.size = s.size;
+      idx.liveCount = s.liveCount;
+      idx.entryPoint = s.entryPoint;
+      idx.topLayer = s.topLayer;
+      for (int i = 0; i < s.size; i++) {
+        idx.idToIndex.put(s.ids[i], i);
+      }
+    } finally {
+      idx.lock.writeLock().unlock();
+    }
+    return idx;
+  }
+
+  /** Serializable snapshot of the index. Internal index ids are NOT stable across restores. */
+  public record Snapshot(
+      int size,
+      int liveCount,
+      int entryPoint,
+      int topLayer,
+      long[] ids,
+      int[] levels,
+      boolean[] deleted,
+      float[][] vectors,
+      int[][][] connections) {}
+
   // ---- internals ----
 
   private record Candidate(int index, float distance) {}
