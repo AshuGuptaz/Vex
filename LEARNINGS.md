@@ -133,11 +133,35 @@ config at 100k vectors lands at ~0.65. Production HNSW
 implementations (hnswlib, Lucene) drop much more gently — typically
 0.95 → 0.92.
 
-I haven't fully tracked the cause; the most likely candidate is
-SELECT-NEIGHBORS-HEURISTIC over-pruning at scale, leaving the layer-0
-graph under-connected for large N. Documented in benchmarks.md and
-ADR 007 as the v2 priority.
+The first hypothesis was the diversity heuristic over-pruning. I
+added a `useHeuristicNeighborSelection` flag, ran the same sweep
+with simple top-M, and the recall numbers came in within 2-3 points
+of the heuristic. So the heuristic is **not** the cause. The
+remaining hypotheses are in `docs/benchmarks.md` (asymmetric
+bidirectional edges, initial dynamic-list population, no bridge
+between newly-promoted top-layer nodes).
 
 The lesson: a recall test that passes at 10k tells you the algorithm
 is approximately right, not that it scales. *Always* run the same
 test at the next order of magnitude.
+
+## 2026-05-07 — Storing vectors as int8 in the index path is a clean refactor
+
+The first version of scalar quantization was "implemented but not
+integrated" — `ScalarQuantizer` worked, but the index still stored
+`float[][]` and decoded floats round-trip through quantize/dequantize
+on every insert. ADR 005 documented this as a deferred gap.
+
+Closing the gap was less work than I expected. The HNSW algorithm is
+mostly storage-agnostic: graph traversal, level assignment, neighbor
+selection are identical. Only the per-vector storage type (`float[]`
+vs `byte[]`) and the distance kernel (`metric.distance(float[],
+float[])` vs `quantizer.squaredL2(byte[], byte[])`) change.
+
+I shipped it as a sibling class — `QuantizedHnswIndex` next to
+`HnswIndex` — rather than parameterizing the existing one. Yes, code
+duplication. But the parallel implementations make the
+"this-is-the-only-thing-that-changes" learning legible to a future
+reader, and it kept `HnswIndex` simple. Real measured numbers (from
+`MemoryComparison`): 4× per-vector compression, 48% total heap
+reduction at 50k dim 128.
