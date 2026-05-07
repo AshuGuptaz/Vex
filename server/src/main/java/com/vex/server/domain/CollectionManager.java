@@ -46,6 +46,12 @@ public class CollectionManager {
       var dirs = stream.filter(Files::isDirectory).sorted().toList();
       for (Path dir : dirs) {
         String name = dir.getFileName().toString();
+        boolean quantized = Files.exists(dir.resolve(".quantized"));
+        if (quantized) {
+          // Quantized collections are not persisted in v1 (ADR 005). Skip loading.
+          LOG.warn("Skipping load of quantized collection '{}' (no on-disk format yet)", name);
+          continue;
+        }
         Path indexFile = dir.resolve(IndexStorage.INDEX_FILE);
         if (!Files.exists(indexFile)) {
           continue;
@@ -53,8 +59,7 @@ public class CollectionManager {
         try {
           IndexStorage storage = IndexStorage.open(dir, null, fsyncOnAppend);
           PayloadStore payloads = PayloadStore.open(dir.resolve("payloads.db"), fsyncOnAppend);
-          boolean quantized = Files.exists(dir.resolve(".quantized"));
-          collections.put(name, new Collection(name, storage, payloads, quantized));
+          collections.put(name, new Collection(name, storage, payloads));
           LOG.info("Loaded collection '{}' ({} vectors)", name, storage.size());
         } catch (IOException e) {
           LOG.warn("Failed to load collection at {}: {}", dir, e.getMessage());
@@ -76,21 +81,33 @@ public class CollectionManager {
     Files.createDirectories(dir);
     DistanceMetric metric = DistanceMetric.named(metricName);
     HnswConfig cfg = new HnswConfig(M, efConstruction, 50, dim, metric, 42L);
-    IndexStorage storage = IndexStorage.open(dir, cfg, fsyncOnAppend);
     PayloadStore payloads = PayloadStore.open(dir.resolve("payloads.db"), fsyncOnAppend);
+    Collection c;
     if (quantized) {
       Files.createFile(dir.resolve(".quantized"));
+      c = new Collection(name, cfg, payloads, true);
+      LOG.info(
+          "Created quantized collection '{}' (dim={}, metric={}, M={}, efC={}, "
+              + "training threshold={})",
+          name,
+          dim,
+          metricName,
+          M,
+          efConstruction,
+          Collection.QUANTIZER_TRAINING_THRESHOLD);
+    } else {
+      IndexStorage storage = IndexStorage.open(dir, cfg, fsyncOnAppend);
+      storage.flush();
+      c = new Collection(name, storage, payloads);
+      LOG.info(
+          "Created float collection '{}' (dim={}, metric={}, M={}, efC={})",
+          name,
+          dim,
+          metricName,
+          M,
+          efConstruction);
     }
-    Collection c = new Collection(name, storage, payloads, quantized);
     collections.put(name, c);
-    storage.flush();
-    LOG.info(
-        "Created collection '{}' (dim={}, metric={}, M={}, efC={})",
-        name,
-        dim,
-        metricName,
-        M,
-        efConstruction);
     return c;
   }
 
