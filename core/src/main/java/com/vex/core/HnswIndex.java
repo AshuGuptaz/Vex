@@ -152,10 +152,9 @@ public final class HnswIndex implements AutoCloseable {
       for (int lc = Math.min(currLayer, level); lc >= 0; lc--) {
         List<Candidate> w = searchLayer(vector, ep, config.efConstruction(), lc);
         int mAtLayer = (lc == 0) ? mMax0 : mMax;
-        // For the new node's outbound connections, fill all M_max slots — use
-        // keepPrunedConnections=true so the diversity heuristic can't leave the new node
-        // with under-cap connectivity.
-        List<Integer> neighbors = selectNeighborsHeuristic(vector, w, mAtLayer, lc, false, true);
+        // Outbound: heuristic-selected neighbors. Don't pad with rejected candidates —
+        // padding helps graph density but adds redundant edges that hurt search.
+        List<Integer> neighbors = selectNeighborsHeuristic(vector, w, mAtLayer, lc, false, false);
         connections[newIdx][lc] = toIntArray(neighbors);
 
         for (int neighborIdx : neighbors) {
