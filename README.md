@@ -152,11 +152,12 @@ ground for a wider audience.
 | ✅ | HNSW index from the paper (Algorithms 1–5) |
 | ✅ | mmap'd checkpoint + WAL + crash recovery |
 | ✅ | REST API + recursive-descent filter parser |
-| ✅ | Scalar quantization (correctness + recall test) |
-| ✅ | JMH benchmark + recall sweep with real numbers |
+| ✅ | Scalar quantization with int8 storage (4× compression, recall ≥ 0.90) |
+| ✅ | JMH benchmark + recall sweep + heap-comparison tool |
 | ✅ | Docker / Jib / docker-compose deploy paths |
-| 🚧 | Quantized vectors stored as int8 in the index (ADR 005) |
+| 🚧 | Persisting QuantizedHnswIndex to disk (ADR 005) |
 | 🚧 | Close the recall gap at 100k+ scale ([benchmarks.md](docs/benchmarks.md)) |
+| 🚧 | int8 cosine + dot product kernels |
 | ❌ | Sharding, replication, product quantization (ADR 007 explains why) |
 | ❌ | SIMD distance kernels via Java Vector API (still incubator) |
 | ❌ | Hybrid (vector + keyword) search |
