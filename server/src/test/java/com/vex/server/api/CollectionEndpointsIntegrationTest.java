@@ -31,6 +31,107 @@ class CollectionEndpointsIntegrationTest {
   }
 
   @Test
+  void openApiDocsEndpointServesValidJson() throws Exception {
+    mvc.perform(get("/v3/api-docs"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.openapi").exists())
+        .andExpect(jsonPath("$.paths").exists());
+  }
+
+  @Test
+  void swaggerUiEndpointRedirectsOrServesHtml() throws Exception {
+    // springdoc serves /swagger-ui.html or redirects to /swagger-ui/index.html.
+    int status = mvc.perform(get("/swagger-ui.html")).andReturn().getResponse().getStatus();
+    org.assertj.core.api.Assertions.assertThat(status).as("swagger-ui status code").isIn(200, 302);
+  }
+
+  @Test
+  void listCollectionsEndpointReturnsArrayIncludingNewlyCreated() throws Exception {
+    String name = "list-" + System.nanoTime();
+    mvc.perform(
+            post("/collections")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("name", name, "dim", 2, "metric", "l2"))))
+        .andExpect(status().isCreated());
+
+    mvc.perform(get("/collections"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$").isArray())
+        .andExpect(
+            jsonPath("$[?(@ == '" + name + "')]").value(org.hamcrest.Matchers.hasItem(name)));
+  }
+
+  @Test
+  void endToEndHundredVectorsWithFilteredQuery() throws Exception {
+    String name = "e2e-" + System.nanoTime();
+    mvc.perform(
+            post("/collections")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("name", name, "dim", 4, "metric", "l2"))))
+        .andExpect(status().isCreated());
+
+    java.util.Random r = new java.util.Random(99L);
+    int booksCount = 0;
+    for (int i = 1; i <= 100; i++) {
+      String category = (i % 3 == 0) ? "books" : "movies";
+      if ("books".equals(category)) {
+        booksCount++;
+      }
+      float[] v = {r.nextFloat(), r.nextFloat(), r.nextFloat(), r.nextFloat()};
+      upsert(name, i, v, Map.of("category", category, "year", 2020 + (i % 5)));
+    }
+
+    var query =
+        Map.of(
+            "vector",
+            new float[] {0.5f, 0.5f, 0.5f, 0.5f},
+            "k",
+            50,
+            "filter",
+            "category = \"books\"");
+    mvc.perform(
+            post("/collections/" + name + "/query")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(query)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.length()").value(org.hamcrest.Matchers.lessThanOrEqualTo(50)))
+        .andExpect(
+            jsonPath(
+                "$[*].payload.category",
+                org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.equalTo("books"))));
+    org.assertj.core.api.Assertions.assertThat(booksCount).isGreaterThan(20);
+  }
+
+  @Test
+  void quantizedCollectionAcceptsUpsertsAndReturnsResults() throws Exception {
+    String name = "q-" + System.nanoTime();
+    mvc.perform(
+            post("/collections")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    json.writeValueAsString(
+                        Map.of("name", name, "dim", 4, "metric", "l2", "quantization", "scalar"))))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.quantized").value(true));
+
+    upsert(name, 1L, new float[] {1f, 0f, 0f, 0f}, Map.of("c", "a"));
+    upsert(name, 2L, new float[] {0f, 1f, 0f, 0f}, Map.of("c", "b"));
+    upsert(name, 3L, new float[] {0f, 0f, 1f, 0f}, Map.of("c", "a"));
+
+    mvc.perform(get("/collections/" + name)).andExpect(jsonPath("$.size").value(3));
+
+    mvc.perform(
+            post("/collections/" + name + "/query")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    json.writeValueAsString(
+                        Map.of("vector", new float[] {1f, 0f, 0f, 0f}, "k", 3))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.length()").value(3))
+        .andExpect(jsonPath("$[0].id").value(1));
+  }
+
+  @Test
   void createGetDeleteRoundTrip() throws Exception {
     String name = "rt-" + System.nanoTime();
     var create = Map.of("name", name, "dim", 4, "metric", "l2", "M", 16, "efConstruction", 200);
