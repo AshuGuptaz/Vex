@@ -1,11 +1,23 @@
 <configuration>
+    <!-- Bench tools log to stdout with a minimal pattern so the output reads
+         like a benchmark report. Real warnings still get a tag. -->
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <target>System.out</target>
+        <encoder>
+            <pattern>%msg%n</pattern>
+        </encoder>
+    </appender>
     <appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
         <target>System.err</target>
         <encoder>
-            <pattern>%d{HH:mm:ss.SSS} %-5level %logger{20} - %msg%n</pattern>
+            <pattern>%-5level %logger{20} - %msg%n</pattern>
         </encoder>
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>WARN</level>
+        </filter>
     </appender>
-    <root level="WARN">
+    <root level="INFO">
+        <appender-ref ref="STDOUT"/>
         <appender-ref ref="STDERR"/>
     </root>
     <logger name="com.vex" level="INFO"/>

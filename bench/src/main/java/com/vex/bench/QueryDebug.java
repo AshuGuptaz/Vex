@@ -33,12 +33,12 @@ public final class QueryDebug {
 
     HnswConfig cfg = new HnswConfig(16, 200, 50, dim, new L2Distance(), seed);
     HnswIndex idx = new HnswIndex(cfg);
-    System.out.printf("building %d vectors...%n", n);
+    BenchOut.infof("building %d vectors...", n);
     long t = System.nanoTime();
     for (int i = 0; i < n; i++) {
       idx.add(i, data[i]);
     }
-    System.out.printf("build: %d ms%n", (System.nanoTime() - t) / 1_000_000);
+    BenchOut.infof("build: %d ms", (System.nanoTime() - t) / 1_000_000);
 
     Random qrng = new Random(seed + 1);
     DistanceMetric metric = new L2Distance();
@@ -63,8 +63,8 @@ public final class QueryDebug {
         recallSum += hit / 10.0;
         visitsSum += HnswIndex.lastSearchLayerVisits;
       }
-      System.out.printf(
-          "ef=%-5d  recall@10=%.4f  avg-visits=%-7d  visits/N=%.4f%n",
+      BenchOut.infof(
+          "ef=%-5d  recall@10=%.4f  avg-visits=%-7d  visits/N=%.4f",
           ef,
           recallSum / sampleQueries,
           visitsSum / sampleQueries,

@@ -30,13 +30,13 @@ public final class GraphInspect {
     int M = 16;
     HnswConfig cfg = new HnswConfig(M, 200, 50, dim, new L2Distance(), seed);
     HnswIndex idx = new HnswIndex(cfg);
-    System.out.printf("building %d vectors at M=%d...%n", n, M);
+    BenchOut.infof("building %d vectors at M=%d...", n, M);
     long start = System.nanoTime();
     for (int i = 0; i < n; i++) {
       idx.add(i, data[i]);
     }
     long buildMs = (System.nanoTime() - start) / 1_000_000;
-    System.out.printf("built in %d ms%n", buildMs);
+    BenchOut.infof("built in %d ms", buildMs);
 
     // Pull internal arrays via reflection — internal API, but we own both modules.
     Field connectionsField = HnswIndex.class.getDeclaredField("connections");
@@ -49,11 +49,11 @@ public final class GraphInspect {
     topLayerField.setAccessible(true);
     int topLayer = topLayerField.getInt(idx);
 
-    System.out.println();
-    System.out.printf("topLayer = %d   size = %d%n", topLayer, size);
-    System.out.printf("expected layer 0 cap (2*M)   = %d%n", 2 * M);
-    System.out.printf("expected layer >0 cap (M)    = %d%n", M);
-    System.out.println();
+    BenchOut.info();
+    BenchOut.infof("topLayer = %d   size = %d", topLayer, size);
+    BenchOut.infof("expected layer 0 cap (2*M)   = %d", 2 * M);
+    BenchOut.infof("expected layer >0 cap (M)    = %d", M);
+    BenchOut.info();
 
     for (int lc = 0; lc <= topLayer; lc++) {
       long count = 0;
@@ -74,8 +74,8 @@ public final class GraphInspect {
       }
       double avg = count > 0 ? (double) sum / count : 0.0;
       double saturatedPct = count > 0 ? 100.0 * saturatedAtCap / count : 0.0;
-      System.out.printf(
-          "layer %d  nodes=%d  avg=%.1f  min=%d  max=%d  at-cap=%.1f%%%n",
+      BenchOut.infof(
+          "layer %d  nodes=%d  avg=%.1f  min=%d  max=%d  at-cap=%.1f%%",
           lc, count, avg, min, max, saturatedPct);
     }
   }

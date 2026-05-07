@@ -23,11 +23,11 @@ public final class MemoryComparison {
   private static final long SEED = 7L;
 
   public static void main(String[] args) {
-    System.out.println("== generating " + N + " random Gaussian dim-" + DIM + " vectors ==");
+    BenchOut.info("== generating " + N + " random Gaussian dim-" + DIM + " vectors ==");
     float[][] data = Datasets.randomGaussian(N, DIM, SEED);
 
-    System.out.println();
-    System.out.println("== float HnswIndex ==");
+    BenchOut.info();
+    BenchOut.info("== float HnswIndex ==");
     long floatHeap =
         measure(
             () -> {
@@ -39,8 +39,8 @@ public final class MemoryComparison {
               return idx;
             });
 
-    System.out.println();
-    System.out.println("== QuantizedHnswIndex (int8) ==");
+    BenchOut.info();
+    BenchOut.info("== QuantizedHnswIndex (int8) ==");
     long quantHeap =
         measure(
             () -> {
@@ -55,14 +55,14 @@ public final class MemoryComparison {
 
     long vecOnlyFloat = (long) N * DIM * 4;
     long vecOnlyByte = (long) N * DIM;
-    System.out.println();
-    System.out.printf(
-        "vector storage alone: float = %s, int8 = %s (%.0f%% reduction)%n",
+    BenchOut.info();
+    BenchOut.infof(
+        "vector storage alone: float = %s, int8 = %s (%.0f%% reduction)",
         humanize(vecOnlyFloat),
         humanize(vecOnlyByte),
         100.0 * (vecOnlyFloat - vecOnlyByte) / vecOnlyFloat);
-    System.out.printf(
-        "total heap after build: float = %s, int8 = %s (%.0f%% reduction)%n",
+    BenchOut.infof(
+        "total heap after build: float = %s, int8 = %s (%.0f%% reduction)",
         humanize(floatHeap),
         humanize(quantHeap),
         100.0 * (floatHeap - quantHeap) / Math.max(1.0, floatHeap));
@@ -79,9 +79,9 @@ public final class MemoryComparison {
     System.gc();
     sleepShort();
     long after = used();
-    System.out.printf("  built %s%n", held.getClass().getSimpleName());
-    System.out.printf(
-        "  heap before: %s   heap after: %s   delta: %s%n",
+    BenchOut.infof("  built %s", held.getClass().getSimpleName());
+    BenchOut.infof(
+        "  heap before: %s   heap after: %s   delta: %s",
         humanize(before), humanize(after), humanize(after - before));
     return after - before;
   }

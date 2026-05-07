@@ -29,11 +29,11 @@ public final class RecallSweep {
   private static final int[] EF_VALUES = {16, 32, 64, 128, 256};
 
   public static void main(String[] args) {
-    System.out.println("== generating " + N + " random Gaussian dim-" + DIM + " vectors ==");
+    BenchOut.info("== generating " + N + " random Gaussian dim-" + DIM + " vectors ==");
     float[][] data = Datasets.randomGaussian(N, DIM, SEED);
     float[][] queries = Datasets.randomGaussian(Q, DIM, SEED + 1);
 
-    System.out.println("== brute-force baseline ==");
+    BenchOut.info("== brute-force baseline ==");
     long bfStart = System.nanoTime();
     DistanceMetric metric = new L2Distance();
     List<Set<Long>> truth = new ArrayList<>(Q);
@@ -41,30 +41,30 @@ public final class RecallSweep {
       truth.add(bruteForceTopK(data, q, metric, K));
     }
     long bfMs = (System.nanoTime() - bfStart) / 1_000_000;
-    System.out.printf("brute-force computed %d top-%d sets in %d ms%n", Q, K, bfMs);
+    BenchOut.infof("brute-force computed %d top-%d sets in %d ms", Q, K, bfMs);
 
     boolean mSweep = "--m-sweep".equals(args.length > 0 ? args[0] : "");
     if (mSweep) {
-      System.out.println();
-      System.out.println("== M sweep at fixed efC=200, efS sweep ==");
+      BenchOut.info();
+      BenchOut.info("== M sweep at fixed efC=200, efS sweep ==");
       for (int m : new int[] {16, 24, 32}) {
-        System.out.println();
-        System.out.println("-- M = " + m + " --");
+        BenchOut.info();
+        BenchOut.info("-- M = " + m + " --");
         runSweep("M=" + m, data, queries, truth, false, true, m, 200);
       }
       return;
     }
 
-    System.out.println();
-    System.out.println("== float-precision HNSW (heuristic neighbor selection) ==");
+    BenchOut.info();
+    BenchOut.info("== float-precision HNSW (heuristic neighbor selection) ==");
     runSweep("float-h", data, queries, truth, false, true, 16, 200);
 
-    System.out.println();
-    System.out.println("== float-precision HNSW (simple top-M neighbor selection) ==");
+    BenchOut.info();
+    BenchOut.info("== float-precision HNSW (simple top-M neighbor selection) ==");
     runSweep("float-s", data, queries, truth, false, false, 16, 200);
 
-    System.out.println();
-    System.out.println("== scalar-quantized round-trip HNSW (heuristic) ==");
+    BenchOut.info();
+    BenchOut.info("== scalar-quantized round-trip HNSW (heuristic) ==");
     runSweep("quant-h", data, queries, truth, true, true, 16, 200);
   }
 
@@ -89,10 +89,9 @@ public final class RecallSweep {
       idx.add(i, v);
     }
     long buildMs = (System.nanoTime() - buildStart) / 1_000_000;
-    System.out.printf(
-        "[%s] build: %d ms (%.0f inserts/sec)%n", label, buildMs, N * 1000.0 / buildMs);
+    BenchOut.infof("[%s] build: %d ms (%.0f inserts/sec)", label, buildMs, N * 1000.0 / buildMs);
 
-    System.out.printf("%-8s%-10s%-12s%-12s%n", "label", "efSearch", "recall@10", "ms/query");
+    BenchOut.infof("%-8s%-10s%-12s%-12s", "label", "efSearch", "recall@10", "ms/query");
     for (int ef : EF_VALUES) {
       double recall = 0.0;
       long start = System.nanoTime();
@@ -108,7 +107,7 @@ public final class RecallSweep {
         recall += hit / (double) K;
       }
       double avgMs = (System.nanoTime() - start) / 1_000_000.0 / Q;
-      System.out.printf("%-8s%-10d%-12.4f%-12.3f%n", label, ef, recall / Q, avgMs);
+      BenchOut.infof("%-8s%-10d%-12.4f%-12.3f", label, ef, recall / Q, avgMs);
     }
   }
 

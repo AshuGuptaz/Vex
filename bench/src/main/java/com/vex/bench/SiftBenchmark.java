@@ -27,7 +27,7 @@ public final class SiftBenchmark {
 
   public static void main(String[] args) throws Exception {
     if (args.length < 1) {
-      System.err.println(
+      BenchOut.err(
           "usage: SiftBenchmark <dir-with-sift_base.fvecs/sift_query.fvecs/sift_groundtruth.ivecs>");
       System.exit(2);
     }
@@ -37,19 +37,19 @@ public final class SiftBenchmark {
     Path truthPath = dir.resolve("sift_groundtruth.ivecs");
 
     if (!Files.exists(basePath) || !Files.exists(queryPath) || !Files.exists(truthPath)) {
-      System.err.println("Missing one of: " + basePath + ", " + queryPath + ", " + truthPath);
-      System.err.println("Run scripts/download_sift.sh to fetch the dataset.");
+      BenchOut.err("Missing one of: " + basePath + ", " + queryPath + ", " + truthPath);
+      BenchOut.err("Run scripts/download_sift.sh to fetch the dataset.");
       System.exit(2);
     }
 
-    System.out.println("== loading SIFT-1M ==");
+    BenchOut.info("== loading SIFT-1M ==");
     long t = System.nanoTime();
     float[][] base = Fvecs.readFvecs(basePath);
     float[][] queries = Fvecs.readFvecs(queryPath);
     int[][] truth = Fvecs.readIvecs(truthPath);
     long loadMs = (System.nanoTime() - t) / 1_000_000;
-    System.out.printf(
-        "loaded base=%d queries=%d truth=%d dim=%d in %d ms%n",
+    BenchOut.infof(
+        "loaded base=%d queries=%d truth=%d dim=%d in %d ms",
         base.length, queries.length, truth.length, base[0].length, loadMs);
 
     int dim = base[0].length;
@@ -57,8 +57,8 @@ public final class SiftBenchmark {
     HnswConfig cfg = new HnswConfig(16, 200, 50, dim, new L2Distance(), seed);
     HnswIndex idx = new HnswIndex(cfg);
 
-    System.out.println();
-    System.out.println("== building HNSW (single-writer, this takes a while) ==");
+    BenchOut.info();
+    BenchOut.info("== building HNSW (single-writer, this takes a while) ==");
     long buildStart = System.nanoTime();
     long lastTick = buildStart;
     for (int i = 0; i < base.length; i++) {
@@ -66,18 +66,18 @@ public final class SiftBenchmark {
       if (i > 0 && i % 50_000 == 0) {
         long now = System.nanoTime();
         double rate = 50_000 * 1e9 / (now - lastTick);
-        System.out.printf("  %d / %d  (%.0f ins/sec recent)%n", i, base.length, rate);
+        BenchOut.infof("  %d / %d  (%.0f ins/sec recent)", i, base.length, rate);
         lastTick = now;
       }
     }
     long buildMs = (System.nanoTime() - buildStart) / 1_000_000;
-    System.out.printf("build: %d ms (%.0f ins/sec avg)%n", buildMs, base.length * 1000.0 / buildMs);
+    BenchOut.infof("build: %d ms (%.0f ins/sec avg)", buildMs, base.length * 1000.0 / buildMs);
 
     int[] efValues = {16, 32, 64, 128, 256};
     int k = 10;
     int qLimit = Math.min(queries.length, 1000);
-    System.out.println();
-    System.out.printf("%-10s%-12s%-12s%n", "efSearch", "recall@10", "ms/query");
+    BenchOut.info();
+    BenchOut.infof("%-10s%-12s%-12s", "efSearch", "recall@10", "ms/query");
     for (int ef : efValues) {
       double recallSum = 0.0;
       long start = System.nanoTime();
@@ -96,7 +96,7 @@ public final class SiftBenchmark {
         recallSum += hit / (double) k;
       }
       double avgMs = (System.nanoTime() - start) / 1_000_000.0 / qLimit;
-      System.out.printf("%-10d%-12.4f%-12.3f%n", ef, recallSum / qLimit, avgMs);
+      BenchOut.infof("%-10d%-12.4f%-12.3f", ef, recallSum / qLimit, avgMs);
     }
   }
 }
