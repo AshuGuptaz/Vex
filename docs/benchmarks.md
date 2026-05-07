@@ -117,20 +117,29 @@ in the index — see ADR 005 for the deferred integration note).
 ## Memory
 
 Measured at runtime via `Runtime.totalMemory() - Runtime.freeMemory()`
-after build, with a `System.gc()` hint:
+after build, with `System.gc()` hints. Captured by
+`java -cp bench/target/vex-bench.jar com.vex.bench.MemoryComparison`
+on 50k vectors of dim 128.
 
-| Index variant | Heap after build | Per-vector overhead |
-| ------------- | ---------------: | ------------------: |
-| float (current) | ~190 MB          | ~1.9 KB / vector   |
+| Index variant            | Heap delta | Bytes / vector (raw) | Compression vs float |
+| ------------------------ | ---------: | -------------------: | -------------------: |
+| `HnswIndex` (float)      | 37.8 MB    | 512 (4 × 128)        | —                    |
+| `QuantizedHnswIndex` (int8) | 19.6 MB | 128 (1 × 128)        | **4×**               |
 
-The per-vector overhead breaks down roughly as:
-- 128 floats = 512 bytes
-- HNSW graph (avg ~32 connections at L0 + a handful above) = ~256 bytes
-- Java object headers, padding, hashmap entry = ~1 KB
+The per-vector raw storage is exactly the expected 4× win. The total
+heap delta lands at **48% reduction** because the graph (`int[][][]`
+connections) is unchanged between variants and doesn't compress.
 
-A future quantized integration (per ADR 005) would shrink the float
-portion from 512 to 128 bytes per vector, a 25-30% total reduction at
-this dimensionality.
+For a 1M-vector dim-768 collection that ratio matters: float storage
+alone is 3 GB; int8 is 768 MB.
+
+The numbers are noisy at 50k (GC state varies) but the *ratio* is
+stable across runs. To reproduce:
+
+```bash
+mvn -B -pl bench -am package -DskipTests
+java -cp bench/target/vex-bench.jar com.vex.bench.MemoryComparison
+```
 
 ## SIFT-1M
 
