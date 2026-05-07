@@ -34,7 +34,7 @@ It is not a Pinecone replacement. It is a Java project that:
   real, committed numbers — including one number I'm not proud of,
   documented honestly.
 
-**Stats:** 126 tests, 39 commits, ~5,000 LOC of Java, 14 documents
+**Stats:** 126 tests, 42 commits, ~5,000 LOC of Java, 15 documents
 under `docs/`, 7 ADRs.
 
 ## Quick start
