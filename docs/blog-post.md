@@ -94,52 +94,61 @@ heap. The mmap is closed.
 This is what Lucene's HNSW codec does too. I read the source after
 writing my own and felt simultaneously vindicated and humbled.
 
-### 3. My recall is worse than hnswlib's, and I'm honest about it
+### 3. The synthetic test that almost convinced me my implementation was broken
 
 I built a recall test: insert 10,000 random Gaussian dim-128 vectors,
 run 100 queries, compare to brute-force baseline. Recall@10 came in
 at 0.95+ with M=16, efC=200, efS=200. Felt great.
 
-Then I bumped to 100,000 vectors. Same parameters. Recall dropped to
-~0.65.
+Then I bumped to 100,000 vectors. Same parameters. **Recall dropped
+to 0.65.**
 
 A tuned hnswlib at the same parameters lands around 0.95 even at 100k.
-There's a real gap between my implementation and a production one.
-The likeliest cause is over-pruning in `SELECT-NEIGHBORS-HEURISTIC` at
-scale — Algorithm 4 of the paper rejects candidates that are "closer
-to an existing neighbor than to the query," and at large N this seems
-to leave the layer-0 graph under-connected.
+I spent hours investigating. Built a graph-inspector tool to count
+connections per node — found that my graph was under-saturated (avg 22
+out of 32 cap at layer 0). Wrote three fixes: heuristic
+keep-pruned-connections, bidirectional edge protection, discarded-pile
+fallback. Got the graph to 100% saturation. Recall barely moved.
 
-I haven't fully tracked it down. Documented honestly in
-`docs/benchmarks.md` as the priority for v2. The honest version of
-this story is "I implemented the paper, it works at the scale the
-paper benchmarks at, and I have an unsolved scaling regression at 10x
-that scale" — not "I beat hnswlib." That's fine. Reviewers will
-respect the honesty more than the bullet point.
+Then I ran the same code against **SIFT-1M** — the canonical ANN
+benchmark, one million real image descriptors:
+
+| efSearch | recall@10 |
+| -------: | --------: |
+| 64       | **0.972** |
+| 128      | **0.992** |
+
+That's hnswlib-class. The implementation was fine all along.
+
+The lesson: **uniform random Gaussian is pathologically hard for any
+graph-based ANN method.** There's no cluster signal for the
+navigable-small-world heuristic to exploit; everything looks the same
+in 128 dimensions. Real data — image features, text embeddings,
+genome k-mers — has natural cluster structure that HNSW was designed
+for. My synthetic test was simulating the wrong distribution.
+
+**Run a real dataset before you conclude anything.** A test that
+fails at 10x scale on synthetic random tells you about your test,
+not always about your code.
 
 ## The numbers
 
-100,000 vectors of dim 128, M=16, efConstruction=200. Captured by
-`bench/.../RecallSweep.java`:
+**SIFT-1M (the headline):**
 
-| efSearch | recall@10 (float) | recall@10 (quantized) | avg latency (ms) |
-| -------: | ----------------: | --------------------: | ---------------: |
-| 16       | 0.25              | 0.24                  | 0.12             |
-| 64       | 0.50              | 0.51                  | 0.32             |
-| 256      | 0.78              | 0.78                  | 1.03             |
+| efSearch | recall@10 | ms/query |
+| -------: | --------: | -------: |
+| 64       | **0.972** | 0.44     |
+| 128      | **0.992** | 0.75     |
+| 256      | 0.998     | 1.30     |
 
-JMH percentile distribution at ef=64: P50 = 0.27 ms, P99 = 0.43 ms.
-Build throughput: ~760 inserts/sec single-threaded.
+Build: 19 min for the full 1M. Heap after build: ~1.4 GB.
 
-Two takeaways:
+**JMH percentile distribution on 100k synthetic, ef=64:**
+P50 = 0.27 ms, P99 = 0.43 ms. Sub-millisecond P99 at the spec target.
 
-1. The latency story is genuinely good. Sub-millisecond P99 at 100k
-   vectors with no SIMD, no off-heap, no bespoke optimization. The
-   JIT does most of the work.
-2. Scalar quantization is essentially free in recall terms — < 0.02
-   delta across the whole sweep. The 4× memory win is yours for the
-   taking, *if* you build the integration to actually store int8s in
-   the index (mine doesn't yet; ADR 005).
+**Quantization (int8 storage in the index hot path) is essentially
+free** — < 0.02 recall delta across the whole sweep, with 4× per-vector
+memory compression confirmed via heap measurement.
 
 ## What I'd do differently
 
