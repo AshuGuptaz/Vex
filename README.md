@@ -160,7 +160,7 @@ ground for a wider audience.
 | ✅ | REST API + recursive-descent filter parser |
 | ✅ | Scalar quantization with int8 storage (4× compression, recall ≥ 0.90) |
 | ✅ | JMH benchmark + recall sweep + heap-comparison tool |
-| ✅ | Docker / Jib / docker-compose deploy paths |
+| ✅ | Docker / Jib / docker-compose deploy paths (verified end-to-end) |
 | ✅ | Persisting QuantizedHnswIndex to disk (ADR 005) |
 | 🚧 | Close the recall gap at 100k+ scale ([benchmarks.md](docs/benchmarks.md)) |
 | 🚧 | int8 cosine + dot product kernels |
