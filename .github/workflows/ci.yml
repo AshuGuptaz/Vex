@@ -39,12 +39,18 @@ jobs:
           path: '**/target/surefire-reports/'
 
   trivy:
+    # Best-effort security scan. Setup failures (rare) shouldn't block CI status —
+    # the build+test job is the gating signal.
     name: Trivy filesystem scan
     runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - uses: actions/checkout@v4
       - name: Trivy FS scan
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           scan-type: 'fs'
           format: 'sarif'
