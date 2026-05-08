@@ -44,6 +44,7 @@ public final class PayloadStore implements AutoCloseable {
     this.fsyncOnAppend = fsyncOnAppend;
   }
 
+  /** Opens (creating if needed) the payload store at {@code path} and replays existing records. */
   public static PayloadStore open(Path path, boolean fsyncOnAppend) throws IOException {
     Files.createDirectories(path.getParent());
     PayloadStore store =
@@ -103,15 +104,21 @@ public final class PayloadStore implements AutoCloseable {
     }
   }
 
+  /** Returns a defensive copy of the payload for the id, or null if no payload is stored. */
   public Map<String, Object> get(long id) {
     Map<String, Object> p = payloads.get(id);
     return p == null ? null : new HashMap<>(p);
   }
 
+  /** Returns true if a payload is stored for the id. */
   public boolean has(long id) {
     return payloads.containsKey(id);
   }
 
+  /**
+   * Stores or replaces the payload for an id. Empty / null clears the stored payload via a delete
+   * record.
+   */
   public synchronized void put(long id, Map<String, Object> payload) throws IOException {
     if (payload == null || payload.isEmpty()) {
       payloads.remove(id);
@@ -128,6 +135,7 @@ public final class PayloadStore implements AutoCloseable {
     append(id, json.getBytes(StandardCharsets.UTF_8));
   }
 
+  /** Drops the payload for the id. No-op if no payload is stored. */
   public synchronized void remove(long id) throws IOException {
     if (payloads.remove(id) != null) {
       append(id, null);
@@ -151,6 +159,7 @@ public final class PayloadStore implements AutoCloseable {
     }
   }
 
+  /** Returns the on-disk file backing this store. */
   public Path path() {
     return path;
   }

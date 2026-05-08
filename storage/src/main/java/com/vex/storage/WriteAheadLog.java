@@ -59,6 +59,7 @@ public final class WriteAheadLog implements AutoCloseable {
     return new WriteAheadLog(path, ch, fsyncOnAppend, dimension);
   }
 
+  /** Returns the on-disk path of the WAL. */
   public Path path() {
     return path;
   }

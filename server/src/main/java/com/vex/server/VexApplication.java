@@ -9,6 +9,7 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 @ConfigurationPropertiesScan
 public class VexApplication {
 
+  /** Boots the embedded Tomcat + Spring application. */
   public static void main(String[] args) {
     SpringApplication.run(VexApplication.class, args);
   }

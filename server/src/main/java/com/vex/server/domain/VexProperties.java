@@ -11,6 +11,7 @@ public class VexProperties {
   private String dataDir = "./data";
   private String walFsync = "per-write";
 
+  /** Directory under which collections are persisted (default {@code ./data}). */
   public String getDataDir() {
     return dataDir;
   }
@@ -19,6 +20,9 @@ public class VexProperties {
     this.dataDir = dataDir;
   }
 
+  /**
+   * WAL fsync mode: {@code per-write} (default, durable) or {@code never} (faster, lossy on crash).
+   */
   public String getWalFsync() {
     return walFsync;
   }

@@ -28,10 +28,20 @@ public final class SiftBenchmark {
   public static void main(String[] args) throws Exception {
     if (args.length < 1) {
       BenchOut.err(
-          "usage: SiftBenchmark <dir-with-sift_base.fvecs/sift_query.fvecs/sift_groundtruth.ivecs>");
+          "usage: SiftBenchmark <dir-with-sift_base.fvecs/sift_query.fvecs/sift_groundtruth.ivecs> "
+              + "[--limit N] [--queries Q]");
       System.exit(2);
     }
     Path dir = Path.of(args[0]);
+    int limit = -1;
+    int queryLimit = 1000;
+    for (int i = 1; i < args.length - 1; i++) {
+      if ("--limit".equals(args[i])) {
+        limit = Integer.parseInt(args[i + 1]);
+      } else if ("--queries".equals(args[i])) {
+        queryLimit = Integer.parseInt(args[i + 1]);
+      }
+    }
     Path basePath = dir.resolve("sift_base.fvecs");
     Path queryPath = dir.resolve("sift_query.fvecs");
     Path truthPath = dir.resolve("sift_groundtruth.ivecs");
@@ -42,15 +52,17 @@ public final class SiftBenchmark {
       System.exit(2);
     }
 
-    BenchOut.info("== loading SIFT-1M ==");
+    BenchOut.info("== loading SIFT ==");
     long t = System.nanoTime();
-    float[][] base = Fvecs.readFvecs(basePath);
+    float[][] baseAll = Fvecs.readFvecs(basePath);
     float[][] queries = Fvecs.readFvecs(queryPath);
     int[][] truth = Fvecs.readIvecs(truthPath);
     long loadMs = (System.nanoTime() - t) / 1_000_000;
+    int n = (limit > 0 && limit < baseAll.length) ? limit : baseAll.length;
+    float[][] base = (n == baseAll.length) ? baseAll : java.util.Arrays.copyOf(baseAll, n);
     BenchOut.infof(
-        "loaded base=%d queries=%d truth=%d dim=%d in %d ms",
-        base.length, queries.length, truth.length, base[0].length, loadMs);
+        "loaded base=%d (using %d) queries=%d truth=%d dim=%d in %d ms",
+        baseAll.length, n, queries.length, truth.length, base[0].length, loadMs);
 
     int dim = base[0].length;
     long seed = 42L;
@@ -75,7 +87,7 @@ public final class SiftBenchmark {
 
     int[] efValues = {16, 32, 64, 128, 256};
     int k = 10;
-    int qLimit = Math.min(queries.length, 1000);
+    int qLimit = Math.min(queries.length, queryLimit);
     BenchOut.info();
     BenchOut.infof("%-10s%-12s%-12s", "efSearch", "recall@10", "ms/query");
     for (int ef : efValues) {
