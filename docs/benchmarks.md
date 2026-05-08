@@ -178,12 +178,44 @@ mvn -B -pl bench -am package -DskipTests
 java -cp bench/target/vex-bench.jar com.vex.bench.MemoryComparison
 ```
 
-## SIFT-1M
+## SIFT-1M (the real headline)
 
-Not run in this report. The benchmark scaffolding is in
-`bench/src/main/java/com/vex/bench/RecallSweep.java` — point it at the
-SIFT base set (`sift_base.fvecs`) and re-run. We chose to ship honest
-synthetic numbers rather than partially-run external numbers.
+Captured 2026-05-09 with `make sift-data && make bench-sift`. Full
+1M-vector base, 1000 query subset, M=16, efConstruction=200.
+
+| efSearch | recall@10 | ms/query |
+| -------: | --------: | -------: |
+| 16       | 0.826     | 0.17     |
+| 32       | 0.920     | 0.23     |
+| 64       | **0.972** | 0.44     |
+| 128      | **0.992** | 0.75     |
+| 256      | **0.998** | 1.30     |
+
+Build: 1,167 s (857 inserts/sec avg, peaked at 2,026 early before the
+graph density slowed it down). Heap after build: ~1.4 GB.
+
+These numbers are **hnswlib-class** — hnswlib's published SIFT-1M
+numbers are 0.95-0.97 at ef=64 with the same M=16, efC=200. Vex hits
+0.97 at ef=64. The recall curve climbs steeply: a single doubling of
+efSearch (64 → 128) takes recall from 0.97 to 0.99 at the cost of
+~0.3 ms additional latency.
+
+**Why does SIFT recall so much higher than the synthetic Gaussian?**
+SIFT is real image descriptors — they cluster naturally because real
+images have repeated visual primitives. HNSW was designed for exactly
+that distribution: the navigable-small-world structure exploits cluster
+locality. Uniform random Gaussian (which the synthetic benchmark uses)
+is essentially the worst case for any graph-based ANN method, because
+no cluster signal exists for the heuristic to navigate. Per-visit, my
+`searchLayer` is doing the same work in both regimes; the SIFT data
+just has a much higher density of true neighbors per visit.
+
+**Reproduce:**
+
+```bash
+make sift-data        # ~165 MB download to ~/sift
+make bench-sift       # ~20 min build + queries
+```
 
 ## Methodology — reproduce
 

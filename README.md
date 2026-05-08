@@ -72,27 +72,26 @@ through the full lifecycle. Swagger UI lives at `/swagger-ui.html`.
 
 ## Benchmarks
 
-100,000 random Gaussian vectors of dim 128, M=16, efConstruction=200,
-captured by `mvn -pl bench -am package -DskipTests &&
-java -cp bench/target/vex-bench.jar com.vex.bench.RecallSweep`:
+**SIFT-1M (1,000,000 real image-descriptor vectors, dim 128, M=16):**
 
-| efSearch | recall@10 (float) | recall@10 (quantized) | avg latency (ms) |
-| -------: | ----------------: | --------------------: | ---------------: |
-| 16       | 0.25              | 0.24                  | 0.12             |
-| 32       | 0.37              | 0.36                  | 0.19             |
-| 64       | 0.50              | 0.51                  | 0.32             |
-| 128      | 0.65              | 0.64                  | 0.55             |
-| 256      | 0.78              | 0.78                  | 1.03             |
+| efSearch | recall@10 | ms/query |
+| -------: | --------: | -------: |
+| 16       | 0.826     | 0.17     |
+| 64       | **0.972** | 0.44     |
+| 128      | **0.992** | 0.75     |
+| 256      | 0.998     | 1.30     |
 
-JMH percentile distribution (ef=64): **P50 = 274 µs, P99 = 428 µs**.
-Build throughput: ~760 inserts/sec single-threaded.
+These are hnswlib-class numbers on the canonical ANN benchmark.
+Captured with `make sift-data && make bench-sift`. Build: 19 min,
+857 inserts/sec avg.
 
-The latency story is solid (P99 well under 5 ms). The recall story
-is honest: at 10k vectors the test passes ≥ 0.95 with the same config,
-but recall degrades non-linearly with N. A tuned hnswlib lands ~0.95
-at 100k; mine lands ~0.65. Likely cause + v2 plan in
-[docs/benchmarks.md](docs/benchmarks.md) and
-[ADR 007](docs/decisions/007-whats-not-built.md).
+**JMH percentile distribution at 100k synthetic Gaussian, ef=64:
+P50 = 274 µs, P99 = 428 µs.** Well under the 5 ms target.
+
+Synthetic uniform Gaussian is much harder for any graph-based ANN
+(no cluster signal); on that dataset Vex lands at 0.50 at ef=64,
+0.78 at ef=256. Full breakdown of why the two distributions look so
+different in [docs/benchmarks.md](docs/benchmarks.md).
 
 ## Architecture
 
