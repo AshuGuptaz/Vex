@@ -5,26 +5,50 @@ The spec's working-style rule is: "If you hit something genuinely
 impossible, document the blocker in `docs/blocked.md` with detail and
 continue with whatever else you can." This is that file.
 
-## 1. `docker-compose up` end-to-end verification
+## 1. `docker-compose up` end-to-end verification — ✅ CLOSED 2026-05-09
 
 **Spec:** "Verify `docker-compose up` works end-to-end (build, run,
 curl from host)."
 
-**Status:** Configuration committed (`Dockerfile`, `docker-compose.yml`,
-Jib config in `server/pom.xml`). **Not verified** — the Docker daemon
-is not installed on the build machine. Installing Docker Desktop or
-Colima was out of scope for the build session.
+**Status:** Verified end-to-end on 2026-05-09 with Colima as the
+Docker daemon on macOS arm64.
 
-**What's still committed and working:**
+**Verified path (transcript):**
 
-- `mvn -pl server -am package jib:dockerBuild` produces a runnable
-  image when a Docker daemon is available.
-- `docker compose up --build` will work on any machine with Docker
-  installed.
-- `docs/deployment.md` walks through the deploy paths.
+```bash
+brew install colima docker docker-compose lima
+colima start --cpu 4 --memory 6 --disk 20
 
-**To close:** install Docker (or Colima as a lightweight alternative)
-and run `docker compose up --build` then `curl localhost:8080/health`.
+# Build the image directly into the daemon (single-arch for the
+# local platform — see Jib config note below).
+mvn -B install -DskipTests
+mvn -B -pl server jib:dockerBuild -DskipTests -Djib.platform.arch=arm64
+
+# Bring up the stack.
+docker compose up -d
+docker compose ps
+# vex   vex-server:latest   "java -cp @/app/jib-…"   Up (healthy)   0.0.0.0:8080->8080/tcp
+
+# Smoke test from the host:
+curl http://localhost:8080/health
+# {"status":"ok"}
+
+curl -X POST http://localhost:8080/collections \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"smoke","dim":4,"metric":"cosine"}'
+# {"name":"smoke","dim":4,"metric":"cosine","M":16,"efConstruction":200,"size":0,"quantized":false}
+
+# Three upserts, then query, filter, get, delete, drop — all 2xx.
+```
+
+The container ran continuously for 22+ hours during the verification
+session. Image size is 449 MB (eclipse-temurin:17-jre + the Vex
+classpath laid out by Jib).
+
+**Jib note:** the parent POM exposes `${jib.platform.arch}` (default
+`amd64`). Override with `-Djib.platform.arch=arm64` for builds on
+ARM hardware (Apple Silicon). CI runs on Linux x86 and uses the
+default.
 
 ## 2. SIFT-1M live benchmark numbers
 

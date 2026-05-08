@@ -23,6 +23,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
+        <jib.platform.arch>amd64</jib.platform.arch>
         <spring.boot.version>3.3.5</spring.boot.version>
         <junit.version>5.10.3</junit.version>
         <assertj.version>3.26.3</assertj.version>

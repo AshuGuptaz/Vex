@@ -73,6 +73,12 @@
                 <configuration>
                     <from>
                         <image>eclipse-temurin:17-jre</image>
+                        <platforms>
+                            <platform>
+                                <architecture>${jib.platform.arch}</architecture>
+                                <os>linux</os>
+                            </platform>
+                        </platforms>
                     </from>
                     <to>
                         <image>vex-server</image>
