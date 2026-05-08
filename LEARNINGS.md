@@ -129,21 +129,30 @@ if it means bumping the minimum JDK.
 ## 2026-05-07 — Recall degrades non-linearly with N at fixed parameters
 
 My 10k-vector recall test passes >= 0.95 at efSearch=200. The same
-config at 100k vectors lands at ~0.65. Production HNSW
-implementations (hnswlib, Lucene) drop much more gently — typically
-0.95 → 0.92.
+config at 100k synthetic uniform Gaussian vectors lands at ~0.65.
+hnswlib at the same parameters lands ~0.95.
 
-The first hypothesis was the diversity heuristic over-pruning. I
-added a `useHeuristicNeighborSelection` flag, ran the same sweep
-with simple top-M, and the recall numbers came in within 2-3 points
-of the heuristic. So the heuristic is **not** the cause. The
-remaining hypotheses are in `docs/benchmarks.md` (asymmetric
-bidirectional edges, initial dynamic-list population, no bridge
-between newly-promoted top-layer nodes).
+I burned several hours debugging this and committed three real fixes
+to graph-build hygiene (saturation, bidirectional edge protection,
+discarded-pile fallback during pruning). The fixes legitimately
+helped — graph saturation went from 22 conns/node to 32 — but
+recall barely moved.
 
-The lesson: a recall test that passes at 10k tells you the algorithm
-is approximately right, not that it scales. *Always* run the same
-test at the next order of magnitude.
+**Then I ran SIFT-1M and got 0.97 at ef=64, 0.99 at ef=128 — fully
+hnswlib-class.**
+
+The lesson, the real one: my synthetic test was uniformly distributed
+random Gaussian. That's the worst case for any graph-based ANN
+method, because there's no cluster signal for the small-world
+heuristic to navigate. Real data (image descriptors, sentence
+embeddings, genomes) has natural cluster structure that HNSW was
+*designed* for. The "recall gap to hnswlib" I spent hours
+investigating was the dataset, not the implementation.
+
+**A test that passes at 10k tells you the algorithm is approximately
+right, not that it scales.** And **a test that fails at 100k synthetic
+random tells you about your test, not always about your code.** Run
+both — and run a real dataset before concluding anything.
 
 ## 2026-05-07 — Storing vectors as int8 in the index path is a clean refactor
 

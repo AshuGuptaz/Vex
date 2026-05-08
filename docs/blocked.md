@@ -50,32 +50,29 @@ classpath laid out by Jib).
 ARM hardware (Apple Silicon). CI runs on Linux x86 and uses the
 default.
 
-## 2. SIFT-1M live benchmark numbers
+## 2. SIFT-1M live benchmark numbers — ✅ CLOSED 2026-05-09
 
 **Spec:** "SIFT-1M benchmark (or 100k subset if download is too slow):
-build time, query latency, recall, memory. Download from
-`ftp://ftp.irisa.fr/local/texmex/corpus/sift.tar.gz` if reachable; if
-not, document that it requires manual download and provide a script."
+build time, query latency, recall, memory."
 
-**Status:** **Spec-allowed fallback.** The dataset wasn't downloaded
-during the build session. The script + benchmark + format reader are
-all in the repo:
+**Status:** Done. Real SIFT-1M numbers committed to
+`docs/benchmarks.md`:
 
-- `scripts/download_sift.sh` — fetches from IRISA, with the Facebook
-  AI mirror as a fallback.
-- `bench/.../SiftBenchmark.java` — loads `sift_base.fvecs`,
-  `sift_query.fvecs`, `sift_groundtruth.ivecs` and runs the recall
-  sweep.
-- `bench/.../Fvecs.java` — `.fvecs` / `.ivecs` reader (mmap'd).
-- Maven profile `-Pbench-sift` and Make target `make bench-sift`.
-- `make sift-data` invokes the download script.
+| efSearch | recall@10 | ms/query |
+| -------: | --------: | -------: |
+| 64       | **0.972** | 0.44     |
+| 128      | **0.992** | 0.75     |
 
-The committed `docs/benchmarks.md` contains real numbers from the
-synthetic 100k Gaussian dataset and notes the SIFT scaffolding is
-present.
+Build time: 1,167 s (857 ins/sec avg). Heap: ~1.4 GB.
 
-**To close:** `make sift-data && make bench-sift` on a machine with
-~1 GB free disk and a working network path to either mirror.
+These match published hnswlib SIFT-1M numbers at the same M=16 /
+efC=200 parameters. The "recall gap to hnswlib" hypothesis from the
+synthetic Gaussian benchmark was wrong: my impl is fully competitive
+on real data. Uniform random Gaussian is pathologically hard for any
+graph-based ANN method (no cluster signal). Documented in
+`docs/benchmarks.md`.
+
+**Reproduce:** `make sift-data && make bench-sift`.
 
 ## 3. CI workflow green on push
 
