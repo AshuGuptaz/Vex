@@ -8,7 +8,8 @@
 ![Java 17](https://img.shields.io/badge/java-17-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-> Live demo: _(deploy with `mvn -pl server -am package jib:dockerBuild` — see [docs/deployment.md](docs/deployment.md))_
+> **Run it locally in 30 seconds:** `docker compose up --build` (full setup below).
+> Deploy paths for Railway / Fly / Render are in [docs/deployment.md](docs/deployment.md).
 
 ## Why this exists
 
