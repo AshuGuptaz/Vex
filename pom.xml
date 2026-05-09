@@ -14,6 +14,7 @@
     <modules>
         <module>core</module>
         <module>storage</module>
+        <module>ui</module>
         <module>server</module>
         <module>bench</module>
     </modules>
@@ -56,6 +57,12 @@
                 <groupId>com.vex</groupId>
                 <artifactId>vex-server</artifactId>
                 <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.vex</groupId>
+                <artifactId>vex-ui</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
             </dependency>
             <dependency>
                 <groupId>org.junit.jupiter</groupId>

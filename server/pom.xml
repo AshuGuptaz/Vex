@@ -23,6 +23,16 @@
             <groupId>com.vex</groupId>
             <artifactId>vex-storage</artifactId>
         </dependency>
+        <!-- Reactor-only dep: server depends on ui to ensure mvn package builds the SPA
+             into server/src/main/resources/static/ BEFORE this module's package phase. -->
+        <dependency>
+            <groupId>com.vex</groupId>
+            <artifactId>vex-ui</artifactId>
+            <version>${project.version}</version>
+            <type>pom</type>
+            <scope>runtime</scope>
+            <optional>true</optional>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>

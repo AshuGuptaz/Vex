@@ -1,4 +1,10 @@
 target/
+node_modules/
+ui/.vite/
+ui/node/
+ui/*.tsbuildinfo
+ui/dist/
+server/src/main/resources/static/
 .idea/
 *.iml
 *.ipr
