@@ -39,29 +39,31 @@ jobs:
           path: '**/target/surefire-reports/'
 
   trivy:
-    # Best-effort security scan. Setup failures (rare) shouldn't block CI status —
-    # the build+test job is the gating signal.
     name: Trivy filesystem scan
     runs-on: ubuntu-latest
-    continue-on-error: true
     permissions:
       contents: read
       security-events: write
     steps:
       - uses: actions/checkout@v4
-      - name: Trivy FS scan
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          scan-type: 'fs'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          severity: 'HIGH,CRITICAL'
-          exit-code: '0'
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            | sudo sh -s -- -b /usr/local/bin
+          trivy --version
+      - name: Run filesystem scan
+        run: |
+          trivy fs \
+            --format sarif \
+            --output trivy-results.sarif \
+            --severity HIGH,CRITICAL \
+            --exit-code 0 \
+            .
       - name: Upload SARIF
-        if: always()
+        if: always() && hashFiles('trivy-results.sarif') != ''
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: 'trivy-results.sarif'
+          sarif_file: trivy-results.sarif
 
   codeql:
     name: CodeQL Java
