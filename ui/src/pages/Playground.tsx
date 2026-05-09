@@ -357,20 +357,21 @@ export default function Playground() {
                 </form>
 
                 {results && (
-                  <div className={`mt-5 ${isStale ? "opacity-60" : ""}`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="text-xs text-zinc-500 uppercase tracking-wider">
+                  <div className="mt-5">
+                    {isStale && (
+                      <div className="mb-3 rounded border border-amber-500 bg-amber-500/10 px-3 py-2 text-sm text-amber-300 font-mono">
+                        ⚠ Inputs changed — these results are from the previous
+                        Query. Click <strong>Query</strong> to refresh.
+                      </div>
+                    )}
+                    <div
+                      className={`${
+                        isStale ? "opacity-50 pointer-events-none" : ""
+                      }`}
+                    >
+                      <div className="text-xs text-zinc-500 uppercase tracking-wider mb-2">
                         {results.length} result{results.length === 1 ? "" : "s"}
                       </div>
-                      {isStale && (
-                        <span
-                          className="text-xs font-mono text-amber-400"
-                          title="The query inputs above changed since this result was fetched."
-                        >
-                          stale · click Query to refresh
-                        </span>
-                      )}
-                    </div>
                     {results.length === 0 ? (
                       <p className="text-sm text-zinc-500 italic">
                         no matches
@@ -412,6 +413,7 @@ export default function Playground() {
                         </table>
                       </div>
                     )}
+                    </div>
                   </div>
                 )}
               </Panel>

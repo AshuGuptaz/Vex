@@ -106,7 +106,9 @@ export default function App() {
               Malkov & Yashunin (2016)
             </a>
           </span>
-          <span>MIT license</span>
+          <span className="font-mono">
+            ui v{__BUILD_ID__} · MIT
+          </span>
         </div>
       </footer>
     </div>

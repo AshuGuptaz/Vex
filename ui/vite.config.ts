@@ -5,8 +5,12 @@ import tailwindcss from "@tailwindcss/vite";
 // Vite outputs the built bundle directly into the Spring Boot server module's
 // static-resource directory so a single `mvn package` produces a JAR (and Jib
 // image) that serves both the API and the UI on port 8080.
+const BUILD_ID = new Date().toISOString().slice(0, 16).replace(/[T:-]/g, "");
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  define: {
+    __BUILD_ID__: JSON.stringify(BUILD_ID),
+  },
   build: {
     outDir: "../server/src/main/resources/static",
     emptyOutDir: true,
