@@ -21,6 +21,20 @@ export default function Playground() {
   const [queryFilter, setQueryFilter] = useState("");
   const [results, setResults] = useState<QueryHit[] | null>(null);
   const [querying, setQuerying] = useState(false);
+  // Snapshot of query params at the moment the last successful query ran. If the
+  // current inputs diverge from this, the displayed table is from a different
+  // query — surface that as "stale" so users don't read stale results as fresh.
+  const [lastQueriedAt, setLastQueriedAt] = useState<string | null>(null);
+
+  const currentQueryKey = JSON.stringify({
+    sel: selected,
+    vec: queryVec,
+    k: queryK,
+    ef: queryEf,
+    filter: queryFilter,
+  });
+  const isStale =
+    results !== null && lastQueriedAt !== null && lastQueriedAt !== currentQueryKey;
 
   // Quick upsert form
   const [upId, setUpId] = useState(1);
@@ -114,6 +128,7 @@ export default function Playground() {
         filter: queryFilter || undefined,
       });
       setResults(hits);
+      setLastQueriedAt(currentQueryKey);
     } catch (e) {
       setError(asMessage(e));
     } finally {
@@ -342,9 +357,19 @@ export default function Playground() {
                 </form>
 
                 {results && (
-                  <div className="mt-5">
-                    <div className="text-xs text-zinc-500 uppercase tracking-wider mb-2">
-                      {results.length} result{results.length === 1 ? "" : "s"}
+                  <div className={`mt-5 ${isStale ? "opacity-60" : ""}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-xs text-zinc-500 uppercase tracking-wider">
+                        {results.length} result{results.length === 1 ? "" : "s"}
+                      </div>
+                      {isStale && (
+                        <span
+                          className="text-xs font-mono text-amber-400"
+                          title="The query inputs above changed since this result was fetched."
+                        >
+                          stale · click Query to refresh
+                        </span>
+                      )}
                     </div>
                     {results.length === 0 ? (
                       <p className="text-sm text-zinc-500 italic">
