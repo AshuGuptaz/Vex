@@ -18,7 +18,6 @@ actually worked. Two weeks later, this is the thing I built to
 *understand* what Pinecone is doing — by implementing HNSW from the
 [paper](https://arxiv.org/abs/1603.09320) end to end.
 
-It is not a Pinecone replacement. It is a Java project that:
 
 - Implements HNSW from scratch (Algorithms 1–5 of the paper, including
   the diversity heuristic for neighbor selection — and a simple top-M
