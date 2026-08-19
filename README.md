@@ -13,7 +13,7 @@
 
 ## Why this exists
 
-I built a RAG pipeline and realized I had no idea how the index
+I buit a RAG pipeline and realized I had no idea how the index
 actually worked. Two weeks later, this is the thing I built to
 *understand* what Pinecone is doing — by implementing HNSW from the
 [paper](https://arxiv.org/abs/1603.09320) end to end.
