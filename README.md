@@ -86,7 +86,7 @@ Captured with `make sift-data && make bench-sift`. Build: 19 min,
 857 inserts/sec avg.
 
 **JMH percentile distribution at 100k synthetic Gaussian, ef=64:
-P50 = 274 µs, P99 = 428 µs.** Well under the 5 ms target.
+P50 = 274 µs, P99 = 428 µs.** Well under the 5 ms 
 
 Synthetic uniform Gaussian is much harder for any graph-based ANN
 (no cluster signal); on that dataset Vex lands at 0.50 at ef=64,
