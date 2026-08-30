@@ -1,5 +1,4 @@
 # Vex
-
 > A vector database with HNSW indexing, written from the paper. Spring
 > Boot REST API, mmap persistence, write-ahead log, scalar
 > quantization, and JMH benchmarks.
