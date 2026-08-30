@@ -33,7 +33,7 @@ actually worked. Two weeks later, this is the thing I built to
 **Stats:** 133 tests, 48 commits, ~6,500 LOC of Java, 15 documents
 under `docs/`, 7 ADRs.
 
-## Quick start
+Quick start
 
 ```bash
 docker compose up --build
