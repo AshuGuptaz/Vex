@@ -9,9 +9,6 @@
 
 > **Run it locally in 30 seconds:** `docker compose up --build` (full setup below).
 > Deploy paths for Railway / Fly / Render are in [docs/deployment.md](docs/deployment.md).
-
-## Why this exists
-
 I built a RAG pipeline and realized I had no idea how the index
 actually worked. Two weeks later, this is the thing I built to
 *understand* what Pinecone is doing — by implementing HNSW from the
