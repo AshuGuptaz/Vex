@@ -3,7 +3,6 @@
 > A vector database with HNSW indexing, written from the paper. Spring
 > Boot REST API, mmap persistence, write-ahead log, scalar
 > quantization, and JMH benchmarks.
-
 [![CI](https://github.com/AshuGuptaz/Vex/actions/workflows/ci.yml/badge.svg)](https://github.com/AshuGuptaz/Vex/actions/workflows/ci.yml)
 ![Java 17](https://img.shields.io/badge/java-17-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
