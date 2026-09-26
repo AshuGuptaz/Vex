@@ -16,7 +16,7 @@ actually worked. Two weeks later, this is the thing I built to
 
 - Implements HNSW from scratch (Algorithms 1–5 of the paper, including
   the diversity heuristic for neighbor selection — and a simple top-M
-  fallback behind a config flag).
+  fallback.
 - Persists to disk with mmap-backed checkpoints + a CRC32 write-ahead
   log + atomic checkpoint rename, with a passing crash-recovery test
   via a child JVM that calls `Runtime.halt`.
